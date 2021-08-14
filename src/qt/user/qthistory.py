@@ -1,10 +1,8 @@
-import weakref
+import time
 
 from PySide2 import QtWidgets
 from PySide2.QtSql import QSqlDatabase, QSqlQuery
-import time
 
-from src.qt.com.qtlistwidget import QtBookList, QtIntLimit
 from src.util import Log
 from ui.history import Ui_History
 
@@ -21,18 +19,13 @@ class QtHistoryData(object):
 
 
 class QtHistory(QtWidgets.QWidget, Ui_History):
-    def __init__(self, owner):
-        super(self.__class__, self).__init__(owner)
+    def __init__(self):
+        super(self.__class__, self).__init__()
         Ui_History.__init__(self)
         self.setupUi(self)
-        self.owner = weakref.ref(owner)
 
-        self.bookList = QtBookList(self, self.__class__.__name__, owner)
         self.bookList.InitBook(self.LoadNextPage)
-        self.gridLayout_3.addWidget(self.bookList)
         self.pageNums = 20
-
-        self.lineEdit.setValidator(QtIntLimit(1, 1, self))
 
         self.history = {}
         self.db = QSqlDatabase.addDatabase("QSQLITE", "history")
@@ -64,7 +57,8 @@ class QtHistory(QtWidgets.QWidget, Ui_History):
         self.bookList.clear()
         self.bookList.page = 1
         self.bookList.pages = len(self.history) // self.pageNums + 1
-        self.lineEdit.setValidator(QtIntLimit(1, self.bookList.pages, self))
+        self.spinBox.setValue(1)
+        self.spinBox.setMaximum(self.pageNums)
         self.bookList.UpdateState()
         self.UpdatePageLabel()
         self.RefreshData(self.bookList.page)
@@ -96,11 +90,10 @@ class QtHistory(QtWidgets.QWidget, Ui_History):
 
         query = QSqlQuery(self.db)
 
-
         sql = "INSERT INTO history(bookId, name, epsId, picIndex, url, path, tick) " \
               "VALUES ('{0}', '{1}', {2}, {3}, '{4}', '{5}', {6}) " \
               "ON CONFLICT(bookId) DO UPDATE SET name='{1}', epsId={2}, picIndex={3}, url = '{4}', path='{5}', tick={6}".\
-            format(bookId, name, epsId, index, url, path, tick)
+            format(bookId, name.replace("'", "''"), epsId, index, url, path, tick)
         suc = query.exec_(sql)
         if not suc:
             Log.Warn(query.lastError().text())
@@ -127,23 +120,13 @@ class QtHistory(QtWidgets.QWidget, Ui_History):
         pass
 
     def JumpPage(self):
-        page = int(self.lineEdit.text())
+        page = int(self.spinBox.text())
         if page > self.bookList.pages:
             return
         self.bookList.page = page
         self.bookList.clear()
         self.RefreshData(page)
         self.UpdatePageLabel()
-
-    def OpenSearch(self, modelIndex):
-        index = modelIndex.row()
-        item = self.bookList.item(index)
-        widget = self.bookList.itemWidget(item)
-        text = widget.infoLabel.text()
-        self.owner().userForm.listWidget.setCurrentRow(1)
-        self.owner().searchForm.searchEdit.setText("")
-        self.owner().searchForm.OpenSearchCategories(text)
-        pass
 
     def LoadNextPage(self):
         self.bookList.page += 1
@@ -157,8 +140,7 @@ class QtHistory(QtWidgets.QWidget, Ui_History):
         start = (page-1) * self.pageNums
         end = start + self.pageNums
         for info in sortedList[start:end]:
-            data = "上次读到第{}章".format(str(info.epsId+1))
-            self.bookList.AddBookItem(info.bookId, info.name, data, info.url, info.path)
+            self.bookList.AddBookItem(info)
 
     def UpdatePageLabel(self):
         self.pages.setText("页：{}/{}".format(str(self.bookList.page), str(self.bookList.pages)))

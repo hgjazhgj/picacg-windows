@@ -1,12 +1,11 @@
-import hashlib
 import os
 import re
 import time
 
 from conf import config
 from src.qt.util.qttask import QtTask
-from .server import handler
 from src.server import req, Status, Log, ToolUtil
+from .server import handler
 
 
 @handler(req.InitReq)
@@ -19,7 +18,7 @@ class InitHandler(object):
 
 
 @handler(req.InitAndroidReq)
-class InitAndroidReq(object):
+class InitAndroidHandler(object):
     def __call__(self, backData):
         from src.user.user import User
         st = User().InitImageServer(backData)
@@ -48,7 +47,7 @@ class RegisterHandler(object):
 
 
 @handler(req.GetUserInfo)
-class GetUserInfo(object):
+class GetUserInfoHandler(object):
     def __call__(self, backData):
         from src.user.user import User
         st = User().UpdateUserInfoBack(backData)
@@ -57,17 +56,17 @@ class GetUserInfo(object):
 
 
 @handler(req.SetAvatarInfoReq)
-class SetAvatarInfoReq(object):
+class SetAvatarInfoHandler(object):
     def __call__(self, backData):
         st = Status.Ok
         if backData.res.code != 200:
-            st = Status.SetHeadError + backData.res.message
+            st = Status.SetHeadError + backData.res.message + backData.res.error
         if backData.bakParam:
             QtTask().taskBack.emit(backData.bakParam, st)
 
 
 @handler(req.SetTitleReq)
-class SetTitleReq(object):
+class SetTitleHandler(object):
     def __call__(self, backData):
         st = Status.Ok
         if backData.res.code != 200:
@@ -77,7 +76,7 @@ class SetTitleReq(object):
 
 
 @handler(req.PunchIn)
-class PunchIn(object):
+class PunchInHandler(object):
     def __call__(self, backData):
         from src.user.user import User
         st = User().PunchedBack(backData)
@@ -85,30 +84,8 @@ class PunchIn(object):
             QtTask().taskBack.emit(backData.bakParam, st)
 
 
-@handler(req.FavoritesAdd)
-class FavoritesAdd(object):
-    def __call__(self, backData):
-        if backData.res.code == 200:
-            if backData.res.data.get("action") == "un_favourite":
-                pass
-            else:
-                pass
-        if backData.bakParam:
-            QtTask().taskBack.emit(backData.bakParam, Status.Ok)
-
-
-@handler(req.FavoritesReq)
-class FavoritesAdd(object):
-    def __call__(self, backData):
-        from src.user.user import User
-        st, page = User().UpdateFavoritesBack(backData)
-        time.sleep(0.1)
-        if backData.bakParam:
-            QtTask().taskBack.emit(backData.bakParam, st)
-
-
 @handler(req.CategoryReq)
-class CategoryReq(object):
+class CategoryHandler(object):
     def __call__(self, backData):
         from src.index.category import CateGoryMgr
         CateGoryMgr().UpdateCateGoryBack(backData)
@@ -116,39 +93,8 @@ class CategoryReq(object):
             QtTask().taskBack.emit(backData.bakParam, Status.Ok)
 
 
-@handler(req.AdvancedSearchReq)
-class AdvancedSearchReq(object):
-    def __call__(self, backData):
-        if backData.res.code == 200:
-            for data in backData.res.data['comics']["docs"]:
-                pass
-        if backData.bakParam:
-            QtTask().taskBack.emit(backData.bakParam, backData.res.raw.text)
-
-
-@handler(req.CategoriesSearchReq)
-class CategoriesSearchReq(object):
-    def __call__(self, backData):
-        if backData.bakParam:
-            QtTask().taskBack.emit(backData.bakParam, backData.res.raw.text)
-
-
-@handler(req.RankReq)
-class RankReq(object):
-    def __call__(self, backData):
-        if backData.bakParam:
-            QtTask().taskBack.emit(backData.bakParam, backData.res.raw.text)
-
-
-@handler(req.GetComments)
-class GetComments(object):
-    def __call__(self, backData):
-        if backData.bakParam:
-            QtTask().taskBack.emit(backData.bakParam, backData.res.raw.text)
-
-
 @handler(req.GetComicsBookEpsReq)
-class GetComicsBookEpsReq(object):
+class GetComicsBookEpsHandler(object):
     def __call__(self, backData):
         from src.index.book import BookMgr
         st = BookMgr().AddBookEpsInfoBack(backData)
@@ -159,7 +105,7 @@ class GetComicsBookEpsReq(object):
 
 
 @handler(req.GetComicsBookOrderReq)
-class GetComicsBookOrderReq(object):
+class GetComicsBookOrderHandler(object):
     def __call__(self, backData):
         from src.index.book import BookMgr
         st = BookMgr().AddBookEpsPicInfoBack(backData)
@@ -170,7 +116,7 @@ class GetComicsBookOrderReq(object):
 
 
 @handler(req.GetComicsBookReq)
-class GetComicsBookReq(object):
+class GetComicsBookHandler(object):
     def __call__(self, backData):
         from src.index.book import BookMgr
         st = BookMgr().AddBookByIdBack(backData)
@@ -179,7 +125,7 @@ class GetComicsBookReq(object):
 
 
 @handler(req.DownloadBookReq)
-class DownloadBookReq(object):
+class DownloadBookHandler(object):
     def __call__(self, backData):
         if backData.status != Status.Ok:
             if backData.bakParam:
@@ -218,8 +164,12 @@ class DownloadBookReq(object):
 
 
 @handler(req.CheckUpdateReq)
-class CheckUpdateReq(object):
+class CheckUpdateHandler(object):
     def __call__(self, backData):
+        if not backData.res.GetText() or backData.status == Status.NetError:
+            if backData.bakParam:
+                QtTask().taskBack.emit(backData.bakParam, "")
+            return
         updateInfo = re.findall(r"<meta property=\"og:description\" content=\"([^\"]*)\"", backData.res.raw.text)
         if updateInfo:
             data = updateInfo[0]
@@ -237,36 +187,8 @@ class CheckUpdateReq(object):
                 QtTask().taskBack.emit(backData.bakParam, data)
 
 
-@handler(req.GetKeywords)
-class GetKeywordsHandler(object):
-    def __call__(self, backData):
-        if backData.bakParam:
-            QtTask().taskBack.emit(backData.bakParam, backData.res.raw.text)
-
-
-@handler(req.SendComment)
-class GetKeywordsHandler(object):
-    def __call__(self, backData):
-        if backData.bakParam:
-            QtTask().taskBack.emit(backData.bakParam, backData.res.raw.text)
-
-
-@handler(req.SendCommentChildrenReq)
-class GetKeywordsHandler(object):
-    def __call__(self, backData):
-        if backData.bakParam:
-            QtTask().taskBack.emit(backData.bakParam, backData.res.raw.text)
-
-
-@handler(req.GetCommentsChildrenReq)
-class GetKeywordsHandler(object):
-    def __call__(self, backData):
-        if backData.bakParam:
-            QtTask().taskBack.emit(backData.bakParam, backData.res.raw.text)
-
-
 @handler(req.SpeedTestReq)
-class SpeedTestReq(object):
+class SpeedTestHandler(object):
     def __call__(self, backData):
         if backData.status != Status.Ok:
             if backData.bakParam:
@@ -300,22 +222,35 @@ class SpeedTestReq(object):
                     QtTask().taskBack.emit(backData.bakParam, "")
 
 
+@handler(req.GetUserCommentReq)
+@handler(req.FavoritesAdd)
+@handler(req.FavoritesReq)
+@handler(req.AdvancedSearchReq)
+@handler(req.CategoriesSearchReq)
+@handler(req.RankReq)
+@handler(req.GetComments)
+@handler(req.GetComicsRecommendation)
+@handler(req.BookLikeReq)
+@handler(req.CommentsLikeReq)
+@handler(req.GetKeywords)
+@handler(req.SendComment)
+@handler(req.SendCommentChildrenReq)
+@handler(req.GetCommentsChildrenReq)
 @handler(req.GetChatReq)
-class GetChatReq(object):
-    def __call__(self, backData):
-        if backData.bakParam:
-            QtTask().taskBack.emit(backData.bakParam, backData.res.raw.text)
-
-
 @handler(req.GetCollectionsReq)
-class GetCollectionsReq(object):
-    def __call__(self, backData):
-        if backData.bakParam:
-            QtTask().taskBack.emit(backData.bakParam, backData.res.raw.text)
-
-
 @handler(req.GetRandomReq)
-class GetCollectionsReq(object):
+@handler(req.GetAPPsReq)
+@handler(req.LoginAPPReq)
+@handler(req.AppInfoReq)
+@handler(req.AppCommentInfoReq)
+@handler(req.GetGameReq)
+@handler(req.GetGameInfoReq)
+@handler(req.GetGameCommentsReq)
+@handler(req.SendGameCommentsReq)
+@handler(req.GameCommentsLikeReq)
+@handler(req.CheckUpdateDatabaseReq)
+@handler(req.DownloadDatabaseReq)
+class MsgHandler(object):
     def __call__(self, backData):
         if backData.bakParam:
             QtTask().taskBack.emit(backData.bakParam, backData.res.raw.text)

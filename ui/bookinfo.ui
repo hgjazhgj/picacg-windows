@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>999</width>
-    <height>808</height>
+    <width>709</width>
+    <height>963</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -54,6 +54,9 @@
                      <property name="text">
                       <string>标题：</string>
                      </property>
+                     <property name="alignment">
+                      <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+                     </property>
                     </widget>
                    </item>
                    <item>
@@ -61,12 +64,91 @@
                      <property name="text">
                       <string>标题</string>
                      </property>
+                     <property name="alignment">
+                      <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+                     </property>
                     </widget>
                    </item>
                   </layout>
                  </item>
                  <item>
-                  <layout class="QHBoxLayout" name="horizontalLayout_4"/>
+                  <layout class="QHBoxLayout" name="horizontalLayout_8">
+                   <item>
+                    <widget class="QLabel" name="label_6">
+                     <property name="maximumSize">
+                      <size>
+                       <width>40</width>
+                       <height>16777215</height>
+                      </size>
+                     </property>
+                     <property name="text">
+                      <string>id:</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QLabel" name="idLabel">
+                     <property name="text">
+                      <string/>
+                     </property>
+                    </widget>
+                   </item>
+                  </layout>
+                 </item>
+                 <item>
+                  <layout class="QHBoxLayout" name="horizontalLayout_4">
+                   <item>
+                    <layout class="QHBoxLayout" name="horizontalLayout_11">
+                     <property name="sizeConstraint">
+                      <enum>QLayout::SetDefaultConstraint</enum>
+                     </property>
+                     <item>
+                      <widget class="QLabel" name="label_2">
+                       <property name="minimumSize">
+                        <size>
+                         <width>0</width>
+                         <height>0</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>16777215</width>
+                         <height>40</height>
+                        </size>
+                       </property>
+                       <property name="text">
+                        <string>作者：</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item>
+                      <widget class="QtCategoryList" name="autorList">
+                       <property name="maximumSize">
+                        <size>
+                         <width>16777215</width>
+                         <height>40</height>
+                        </size>
+                       </property>
+                       <property name="styleSheet">
+                        <string notr="true">background-color:transparent;</string>
+                       </property>
+                       <property name="frameShape">
+                        <enum>QFrame::NoFrame</enum>
+                       </property>
+                       <property name="showDropIndicator" stdset="0">
+                        <bool>true</bool>
+                       </property>
+                       <property name="flow">
+                        <enum>QListView::LeftToRight</enum>
+                       </property>
+                       <property name="spacing">
+                        <number>10</number>
+                       </property>
+                      </widget>
+                     </item>
+                    </layout>
+                   </item>
+                  </layout>
                  </item>
                  <item>
                   <layout class="QHBoxLayout" name="horizontalLayout_5">
@@ -81,6 +163,9 @@
                      <property name="text">
                       <string>描述：</string>
                      </property>
+                     <property name="alignment">
+                      <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+                     </property>
                     </widget>
                    </item>
                    <item>
@@ -88,41 +173,110 @@
                      <property name="text">
                       <string>描述</string>
                      </property>
+                     <property name="alignment">
+                      <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+                     </property>
                     </widget>
                    </item>
                   </layout>
                  </item>
                  <item>
-                  <layout class="QHBoxLayout" name="horizontalLayout_6"/>
-                 </item>
-                 <item>
-                  <layout class="QHBoxLayout" name="horizontalLayout_7"/>
-                 </item>
-                 <item>
-                  <layout class="QHBoxLayout" name="horizontalLayout_8">
+                  <layout class="QHBoxLayout" name="horizontalLayout_6">
                    <item>
-                    <widget class="QLabel" name="label_6">
+                    <widget class="QLabel" name="label_4">
                      <property name="maximumSize">
                       <size>
-                       <width>40</width>
-                       <height>20</height>
+                       <width>16777215</width>
+                       <height>40</height>
                       </size>
                      </property>
                      <property name="text">
-                      <string>爱心数：</string>
+                      <string>分类：</string>
                      </property>
                     </widget>
                    </item>
                    <item>
-                    <widget class="QLabel" name="likes">
+                    <widget class="QtCategoryList" name="categoriesList">
                      <property name="maximumSize">
                       <size>
                        <width>16777215</width>
-                       <height>20</height>
+                       <height>40</height>
+                      </size>
+                     </property>
+                     <property name="styleSheet">
+                      <string notr="true">QListWidget {background-color:transparent;}
+QListWidget::item {
+    background-color:rgb(251, 239, 243);
+    color: rgb(196, 95, 125);
+	border:2px solid red;
+    border-radius: 10px;
+	border-color:rgb(196, 95, 125);
+}
+/* 鼠标在按钮上时，按钮颜色 */
+ QListWidget::item:hover 
+{
+    background-color:rgb(21, 85, 154);
+    border-radius: 10px;
+    color: rgb(0, 0, 0);
+}
+</string>
+                     </property>
+                     <property name="frameShape">
+                      <enum>QFrame::NoFrame</enum>
+                     </property>
+                     <property name="spacing">
+                      <number>6</number>
+                     </property>
+                    </widget>
+                   </item>
+                  </layout>
+                 </item>
+                 <item>
+                  <layout class="QHBoxLayout" name="horizontalLayout_7">
+                   <item>
+                    <widget class="QLabel" name="label_5">
+                     <property name="maximumSize">
+                      <size>
+                       <width>16777215</width>
+                       <height>40</height>
                       </size>
                      </property>
                      <property name="text">
-                      <string>爱心数</string>
+                      <string>Tags：</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QtCategoryList" name="tagsList">
+                     <property name="maximumSize">
+                      <size>
+                       <width>16777215</width>
+                       <height>40</height>
+                      </size>
+                     </property>
+                     <property name="styleSheet">
+                      <string notr="true">QListWidget {background-color:transparent;}
+QListWidget::item {
+    background-color:rgb(251, 239, 243);
+    color: rgb(196, 95, 125);
+	border:2px solid red;
+    border-radius: 10px;
+	border-color:rgb(196, 95, 125);
+}
+/* 鼠标在按钮上时，按钮颜色 */
+ QListWidget::item:hover 
+{
+    background-color:rgb(21, 85, 154);
+    border-radius: 10px;
+    color: rgb(0, 0, 0);
+}
+</string>
+                     </property>
+                     <property name="frameShape">
+                      <enum>QFrame::NoFrame</enum>
+                     </property>
+                     <property name="spacing">
+                      <number>6</number>
                      </property>
                     </widget>
                    </item>
@@ -159,6 +313,19 @@
                   </layout>
                  </item>
                  <item>
+                  <spacer name="verticalSpacer">
+                   <property name="orientation">
+                    <enum>Qt::Vertical</enum>
+                   </property>
+                   <property name="sizeHint" stdset="0">
+                    <size>
+                     <width>20</width>
+                     <height>40</height>
+                    </size>
+                   </property>
+                  </spacer>
+                 </item>
+                 <item>
                   <layout class="QHBoxLayout" name="horizontalLayout_2">
                    <item>
                     <widget class="QLabel" name="updateTick">
@@ -168,13 +335,13 @@
                      <property name="minimumSize">
                       <size>
                        <width>80</width>
-                       <height>0</height>
+                       <height>40</height>
                       </size>
                      </property>
                      <property name="maximumSize">
                       <size>
                        <width>80</width>
-                       <height>20</height>
+                       <height>40</height>
                       </size>
                      </property>
                      <property name="text">
@@ -183,62 +350,65 @@
                     </widget>
                    </item>
                    <item>
-                    <widget class="QLabel" name="isFinished">
+                    <widget class="QToolButton" name="starButton">
                      <property name="minimumSize">
                       <size>
-                       <width>80</width>
-                       <height>0</height>
+                       <width>40</width>
+                       <height>40</height>
                       </size>
                      </property>
-                     <property name="maximumSize">
-                      <size>
-                       <width>80</width>
-                       <height>20</height>
-                      </size>
+                     <property name="styleSheet">
+                      <string notr="true">background-color:transparent;</string>
                      </property>
                      <property name="text">
-                      <string>完本</string>
-                     </property>
-                     <property name="textFormat">
-                      <enum>Qt::AutoText</enum>
-                     </property>
-                     <property name="alignment">
-                      <set>Qt::AlignCenter</set>
+                      <string/>
                      </property>
                     </widget>
                    </item>
                    <item>
-                    <widget class="QPushButton" name="download">
-                     <property name="maximumSize">
+                    <widget class="QToolButton" name="favoriteButton">
+                     <property name="minimumSize">
                       <size>
-                       <width>16777215</width>
-                       <height>20</height>
+                       <width>40</width>
+                       <height>40</height>
                       </size>
                      </property>
+                     <property name="styleSheet">
+                      <string notr="true">background-color:transparent;</string>
+                     </property>
                      <property name="text">
-                      <string>下载</string>
+                      <string/>
                      </property>
                     </widget>
                    </item>
                    <item>
-                    <widget class="QPushButton" name="favorites">
-                     <property name="maximumSize">
+                    <widget class="QToolButton" name="downloadButton">
+                     <property name="minimumSize">
                       <size>
-                       <width>16777215</width>
-                       <height>20</height>
+                       <width>40</width>
+                       <height>40</height>
                       </size>
                      </property>
+                     <property name="styleSheet">
+                      <string notr="true">background-color:transparent;</string>
+                     </property>
                      <property name="text">
-                      <string>收藏</string>
+                      <string/>
                      </property>
                     </widget>
                    </item>
                    <item>
                     <widget class="QPushButton" name="startRead">
+                     <property name="minimumSize">
+                      <size>
+                       <width>0</width>
+                       <height>40</height>
+                      </size>
+                     </property>
                      <property name="maximumSize">
                       <size>
                        <width>16777215</width>
-                       <height>20</height>
+                       <height>40</height>
                       </size>
                      </property>
                      <property name="text">
@@ -269,6 +439,9 @@
            </item>
            <item>
             <widget class="QTabWidget" name="tabWidget">
+             <property name="styleSheet">
+              <string notr="true">QTabWidget:pane {border-top:0px solid #e8f3f9;background:  transparent; }</string>
+             </property>
              <property name="currentIndex">
               <number>0</number>
              </property>
@@ -276,9 +449,44 @@
               <attribute name="title">
                <string>章节</string>
               </attribute>
-              <layout class="QGridLayout" name="epsLayout"/>
+              <layout class="QGridLayout" name="epsLayout">
+               <item row="0" column="0">
+                <widget class="QListWidget" name="epsListWidget">
+                 <property name="styleSheet">
+                  <string notr="true">QListWidget {background-color:transparent;}
+QListWidget::item {
+    background-color:rgb(251, 239, 243);
+    color: rgb(196, 95, 125);
+	border:2px solid red;
+    border-radius: 10px;
+	border-color:rgb(196, 95, 125);
+}
+/* 鼠标在按钮上时，按钮颜色 */
+ QListWidget::item:hover 
+{
+    background-color:rgb(21, 85, 154);
+    border-radius: 10px;
+    color: rgb(0, 0, 0);
+}
+</string>
+                 </property>
+                 <property name="textElideMode">
+                  <enum>Qt::ElideRight</enum>
+                 </property>
+                 <property name="verticalScrollMode">
+                  <enum>QAbstractItemView::ScrollPerPixel</enum>
+                 </property>
+                 <property name="horizontalScrollMode">
+                  <enum>QAbstractItemView::ScrollPerPixel</enum>
+                 </property>
+                 <property name="spacing">
+                  <number>6</number>
+                 </property>
+                </widget>
+               </item>
+              </layout>
              </widget>
-             <widget class="QWidget" name="commentWidget">
+             <widget class="QtCommentList" name="commentWidget">
               <attribute name="title">
                <string>评论</string>
               </attribute>
@@ -296,40 +504,21 @@
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>QtCategoryList</class>
+   <extends>QListWidget</extends>
+   <header location="global">.qtlistwidget.h</header>
+  </customwidget>
+  <customwidget>
+   <class>QtCommentList</class>
+   <extends>QWidget</extends>
+   <header location="global">.qt_comment_list.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections>
-  <connection>
-   <sender>download</sender>
-   <signal>clicked()</signal>
-   <receiver>BookInfo</receiver>
-   <slot>AddDownload()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>374</x>
-     <y>300</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>646</x>
-     <y>360</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>favorites</sender>
-   <signal>clicked()</signal>
-   <receiver>BookInfo</receiver>
-   <slot>AddFavority()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>455</x>
-     <y>300</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>760</x>
-     <y>324</y>
-    </hint>
-   </hints>
-  </connection>
   <connection>
    <sender>startRead</sender>
    <signal>clicked()</signal>
@@ -337,12 +526,60 @@
    <slot>StartRead()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>399</x>
-     <y>328</y>
+     <x>568</x>
+     <y>474</y>
     </hint>
     <hint type="destinationlabel">
      <x>313</x>
      <y>607</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>starButton</sender>
+   <signal>clicked()</signal>
+   <receiver>BookInfo</receiver>
+   <slot>AddBookLike()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>366</x>
+     <y>460</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>821</x>
+     <y>447</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>favoriteButton</sender>
+   <signal>clicked()</signal>
+   <receiver>BookInfo</receiver>
+   <slot>AddFavority()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>432</x>
+     <y>454</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>781</x>
+     <y>432</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>downloadButton</sender>
+   <signal>clicked()</signal>
+   <receiver>BookInfo</receiver>
+   <slot>AddDownload()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>463</x>
+     <y>449</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>788</x>
+     <y>413</y>
     </hint>
    </hints>
   </connection>
@@ -351,5 +588,6 @@
   <slot>AddDownload()</slot>
   <slot>AddFavority()</slot>
   <slot>StartRead()</slot>
+  <slot>AddBookLike()</slot>
  </slots>
 </ui>

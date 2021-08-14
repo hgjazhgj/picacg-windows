@@ -1,17 +1,16 @@
-import os
-import threading
-import time
-import weakref
 import json
+import threading
 from queue import Queue
 
 import requests
+import urllib3
+
 import src.server.req as req
 import src.server.res as res
-from src.util import ToolUtil, Singleton, Log
 from conf import config
+from src.util import ToolUtil, Singleton, Log
 from src.util.status import Status
-import urllib3
+
 urllib3.disable_warnings()
 
 
@@ -94,18 +93,18 @@ class Server(Singleton, threading.Thread):
             if host in config.Url:
                 request.url = request.url.replace(host, self.address).replace("https://", "http://")
                 request.headers["Host"] = host
-            else:
+            elif self.imageServer and request.useImgProxy:
                 request.url = request.url.replace(host, self.imageServer)
 
         if request.method.lower() in ["post", "put"]:
             request.headers["Content-Type"] = "application/json; charset=UTF-8"
 
-    def Send(self, request, token="", bakParam="", isASync=True):
+    def Send(self, request, token="", backParam="", isASync=True):
         self.__DealHeaders(request, token)
         if isASync:
-            self._inQueue.put(Task(request, bakParam))
+            self._inQueue.put(Task(request, backParam))
         else:
-            self._Send(Task(request, bakParam))
+            self._Send(Task(request, backParam))
 
     def _Send(self, task):
         try:
@@ -119,12 +118,14 @@ class Server(Singleton, threading.Thread):
                 return
         except Exception as es:
             task.status = Status.NetError
-            Log.Error(es)
+            # Log.Error(es)
+            Log.Debug(es)
         try:
             self.handler.get(task.req.__class__)(task)
             if task.res.raw:
                 task.res.raw.close()
         except Exception as es:
+            Log.Warn("task: {}, error".format(task.req.__class__))
             Log.Error(es)
 
     def Post(self, task):
@@ -159,6 +160,7 @@ class Server(Singleton, threading.Thread):
         if request.headers == None:
             request.headers = {}
 
+        task.res = res.BaseRes("", False)
         r = self.session.get(request.url, proxies=request.proxy, headers=request.headers, timeout=task.timeout, verify=False)
         task.res = res.BaseRes(r, request.isParseRes)
         return task

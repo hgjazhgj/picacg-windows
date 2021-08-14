@@ -1,38 +1,71 @@
-from PySide2 import QtWidgets
-import weakref
+import json
+import time
 
-from PySide2.QtGui import QCursor
-from PySide2.QtWidgets import QMenu, QApplication
-from PySide2.QtCore import Qt
+from PySide2 import QtWidgets
+from PySide2.QtCore import QTimer
 
 from src.index.book import BookMgr
-from src.qt.com.qtlistwidget import QtBookList, QtIntLimit
+from src.qt.qtmain import QtOwner
+from src.qt.util.qttask import QtTaskBase
+from src.server import req
+from src.server.sql_server import SqlServer
 from src.user.user import User
-from src.util.status import Status
+from src.util import Log
+from src.util.tool import time_me
 from ui.favorite import Ui_favorite
 
 
-class QtFavorite(QtWidgets.QWidget, Ui_favorite):
-    def __init__(self, owner):
-        super(self.__class__, self).__init__(owner)
+class QtFavorite(QtWidgets.QWidget, Ui_favorite, QtTaskBase):
+    def __init__(self):
+        super(self.__class__, self).__init__()
         Ui_favorite.__init__(self)
-
+        QtTaskBase.__init__(self)
         self.setupUi(self)
-        self.owner = weakref.ref(owner)
 
         self.dealCount = 0
         self.dirty = False
 
-        self.bookList = QtBookList(self, self.__class__.__name__, owner)
         self.bookList.InitBook(self.LoadNextPage)
-        self.gridLayout_3.addWidget(self.bookList)
 
-        self.lineEdit.setValidator(QtIntLimit(1, 1, self))
         self.sortList = ["dd", "da"]
         self.bookList.InstallDel()
 
+        self.sortId = 1
+        self.reupdateBookIds = set()
+        self.allFavoriteIds = dict()
+        self.maxSortId = 0
+
+    def close(self):
+        self.timer.close()
+        super(QtFavorite, self).close()
+
     def SwitchCurrent(self):
         self.RefreshDataFocus()
+
+    def UpdatePageNum(self):
+        maxFovorite = len(self.allFavoriteIds)
+        self.bookList.pages = max(0, (maxFovorite-1)) // 20 + 1
+        self.pages.setText("{}/{}页".format(self.bookList.page, self.bookList.pages))
+        self.nums.setText("收藏数：{}".format(maxFovorite))
+        self.spinBox.setValue(self.bookList.page)
+        self.spinBox.setMaximum(self.bookList.pages)
+        self.bookList.UpdateState()
+
+    def InitFavorite(self):
+        self.AddSqlTask("book", "", SqlServer.TaskTypeSelectFavorite, self.LoadAllFavoriteBack)
+        return
+
+    def LoadAllFavoriteBack(self, data):
+        for _id in data:
+            self.allFavoriteIds[_id] = 0
+        self.UpdatePageNum()
+        self.LoadPage(1)
+        return
+
+    def UpdateSortId(self, bookId):
+        self.maxSortId += 1
+        self.allFavoriteIds[bookId] = self.maxSortId
+        return self.maxSortId
 
     def RefreshDataFocus(self):
         User().category.clear()
@@ -41,61 +74,115 @@ class QtFavorite(QtWidgets.QWidget, Ui_favorite):
         self.bookList.clear()
         self.RefreshData()
 
-    def RefreshData(self):
-        if not User().category.get(self.bookList.page):
-            self.LoadPage(self.bookList.page)
-        else:
-            self.UpdatePagesBack(Status.Ok)
-
-    def UpdatePagesBack(self, st):
-        self.owner().loadingForm.close()
-        self.bookList.UpdateState()
-        if st == Status.Ok:
-            pageNums = User().pages
-            page = User().page
-            self.nums.setText("收藏数：{}".format(str(User().total)))
-            self.pages.setText("页：{}/{}".format(str(page), str(pageNums)))
-            self.bookList.UpdatePage(page, pageNums)
-            self.lineEdit.setValidator(QtIntLimit(1, pageNums, self))
-            for index, info in enumerate(User().category.get(self.bookList.page)):
-                url = info.thumb.get("fileServer")
-                path = info.thumb.get("path")
-                originalName = info.thumb.get("originalName")
-                data = "完本," if info.finished else ""
-                data += "{}E/{}P".format(str(info.epsCount), str(info.pagesCount))
-                self.bookList.AddBookItem(info.id, info.title, data, url, path, originalName)
-
     def DelCallBack(self, bookIds):
-        self.owner().loadingForm.show()
+        QtOwner().owner.loadingForm.show()
 
         self.dealCount = len(bookIds)
         for bookId in bookIds:
-            self.owner().qtTask.AddHttpTask(lambda x: User().AddAndDelFavorites(bookId, x), self.DelAndFavoritesBack)
+            self.AddHttpTask(req.FavoritesAdd(bookId), self.DelAndFavoritesBack, bookId)
             info = BookMgr().books.get(bookId)
             if info:
                 info.isFavourite = False
 
         pass
 
-    def DelAndFavoritesBack(self, msg):
+    def DelAndFavoritesBack(self, msg, bookId):
         self.dealCount -= 1
+        sql = "delete from favorite where id='{}' and user='{}';".format(bookId, User().userId)
+        self.AddSqlTask("book", sql, SqlServer.TaskTypeSql)
+        if bookId in self.allFavoriteIds:
+            self.allFavoriteIds.pop(bookId)
         if self.dealCount <= 0:
-            self.owner().loadingForm.close()
+            QtOwner().owner.loadingForm.close()
             self.RefreshDataFocus()
 
+    def AddFavorites(self, bookId):
+        if bookId in self.allFavoriteIds:
+            sortId = self.allFavoriteIds[bookId]
+        else:
+            sortId = self.UpdateSortId(bookId)
+        self.AddSqlTask("book", [(bookId, sortId)], SqlServer.TaskTypeUpdateFavorite)
+
     def LoadNextPage(self):
-        self.LoadPage(self.bookList.page+1)
+        self.bookList.page += 1
+        self.RefreshData()
 
     def LoadPage(self, page):
-        sortKey = self.sortList[self.comboBox.currentIndex()]
-        self.owner().qtTask.AddHttpTask(lambda x: User().UpdateFavorites(page, sortKey, x), self.UpdatePagesBack)
-        self.owner().loadingForm.show()
+        Log.Info("load favorite page:{}".format(page))
+        self.AddHttpTask(req.FavoritesReq(page, "da"), self.UpdatePagesBack, page)
+        # QtOwner().owner.loadingForm.show()
 
     def JumpPage(self):
-        page = int(self.lineEdit.text())
+        page = int(self.spinBox.text())
         if page > self.bookList.pages:
             return
         self.bookList.page = page
         self.bookList.clear()
-        self.LoadPage(page)
+        self.RefreshData()
+
+    def RefreshData(self):
+        QtOwner().owner.loadingForm.show()
+        sortId1 = self.comboBox.currentIndex()
+        sortId2 = self.comboBox_2.currentIndex()
+        sql = SqlServer.SearchFavorite(self.bookList.page, sortId1, sortId2)
+        self.AddSqlTask("book", sql, SqlServer.TaskTypeSelectBook, self.SeachBack)
+
+    def SeachBack(self, bookList):
+        QtOwner().owner.loadingForm.close()
+        for info in bookList:
+            self.bookList.AddBookItem(info, isShowHistory=True)
+        self.UpdatePageNum()
+        return
+
+    def UpdatePagesBack(self, data, page):
+        loadPage = 0
+        try:
+            data = json.loads(data)
+            info = data.get("data", {}).get("comics", {})
+            # total = info["total"]
+            page = info["page"]
+            pages = info["pages"]
+            bookIds = []
+            for bookInfo in info.get("docs", []):
+                bookId = bookInfo.get("_id")
+                self.reupdateBookIds.add(bookId)
+                sortId = self.UpdateSortId(bookId)
+                bookIds.append((bookId, sortId))
+            self.AddSqlTask("book", bookIds, SqlServer.TaskTypeUpdateFavorite)
+            if pages > page:
+                loadPage = page + 1
+            self.msgLabel.setText("正在加载收藏分页{}/{}".format(page, pages))
+        except Exception as es:
+            Log.Error(es)
+            loadPage = page
+        finally:
+            if loadPage > 0:
+                self.LoadPage(loadPage)
+            else:
+                self.LoadPageComplete()
+
+    ## 完成所有的收藏加载
+    @time_me
+    def LoadPageComplete(self):
+        self.msgLabel.setText("更新完毕")
+        delBookIds = set(self.allFavoriteIds.keys()) - self.reupdateBookIds
+        for bookId in delBookIds:
+            self.allFavoriteIds.pop(bookId)
+            sql = "delete from favorite where id='{}' and user='{}';".format(bookId, User().userId)
+            self.AddSqlTask("book", sql, SqlServer.TaskTypeSql)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

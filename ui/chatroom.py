@@ -84,6 +84,7 @@ class Ui_ChatRoom(object):
         font.setFamily(u"\u5fae\u8f6f\u96c5\u9ed1")
         font.setPointSize(12)
         self.textEdit.setFont(font)
+        self.textEdit.setStyleSheet(u"background-color:transparent;")
 
         self.horizontalLayout_2.addWidget(self.textEdit)
 
@@ -101,11 +102,23 @@ class Ui_ChatRoom(object):
 
         self.verticalLayout.addWidget(self.picButton)
 
+        self.horizontalLayout_4 = QHBoxLayout()
+        self.horizontalLayout_4.setSpacing(0)
+        self.horizontalLayout_4.setObjectName(u"horizontalLayout_4")
         self.sendButton = QPushButton(ChatRoom)
         self.sendButton.setObjectName(u"sendButton")
         self.sendButton.setMaximumSize(QSize(16777215, 20))
 
-        self.verticalLayout.addWidget(self.sendButton)
+        self.horizontalLayout_4.addWidget(self.sendButton)
+
+        self.toolButton = QPushButton(ChatRoom)
+        self.toolButton.setObjectName(u"toolButton")
+        self.toolButton.setMaximumSize(QSize(16777215, 20))
+
+        self.horizontalLayout_4.addWidget(self.toolButton)
+
+
+        self.verticalLayout.addLayout(self.horizontalLayout_4)
 
 
         self.horizontalLayout_2.addLayout(self.verticalLayout)
@@ -116,6 +129,7 @@ class Ui_ChatRoom(object):
         self.listWidget = QListWidget(ChatRoom)
         self.listWidget.setObjectName(u"listWidget")
         self.listWidget.setMaximumSize(QSize(16777215, 100))
+        self.listWidget.setStyleSheet(u"background-color:transparent;")
 
         self.gridLayout.addWidget(self.listWidget, 4, 0, 1, 1)
 
@@ -139,5 +153,6 @@ class Ui_ChatRoom(object):
         self.pushButton.setText(QCoreApplication.translate("ChatRoom", u"\u8868\u60c5", None))
         self.picButton.setText(QCoreApplication.translate("ChatRoom", u"\u56fe\u7247", None))
         self.sendButton.setText(QCoreApplication.translate("ChatRoom", u"\u53d1\u9001", None))
+        self.toolButton.setText("")
     # retranslateUi
 

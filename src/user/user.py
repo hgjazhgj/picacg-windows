@@ -1,10 +1,6 @@
-from src.index.book import BookMgr
-from src.index.category import CateGoryMgr
+import src.server.req as req
 from src.server.server import Server
 from src.util import ToolUtil, Log, Singleton
-import json
-import src.server.req as req
-import src.server.res as res
 from src.util.status import Status
 
 
@@ -43,8 +39,8 @@ class User(Singleton):
 
         self.avatar = {}
 
-        self.addresss = []  # 列表
-
+        self.addresss = ['104.20.180.50', '104.20.181.50']  # 列表
+        self.imageServer = 'storage.wikawika.xyz'
         self.searchCache = []
 
     @property
@@ -58,11 +54,6 @@ class User(Singleton):
     @address.setter
     def address(self, value):
         self.server.address = value
-
-    def Init(self, bakParams=0):
-        request = req.InitReq()
-        request.proxy = {}
-        self.server.Send(request, bakParam=bakParams)
 
     def InitBack(self, backData):
         try:
@@ -82,6 +73,8 @@ class User(Singleton):
 
     def InitImageServer(self, backData):
         try:
+            if self.server.address:
+                self.server.imageServer = self.imageServer
             if backData.res.code == 200:
                 # 选择了分流才设置
                 if self.server.address:
@@ -100,9 +93,6 @@ class User(Singleton):
         self.passwd = passwd
         return
 
-    def Login(self, bakParam=0):
-        self.server.Send(req.LoginReq(self.userId, self.passwd), bakParam=bakParam)
-
     def LoginBack(self, backData):
         try:
             if backData.status != Status.Ok:
@@ -116,18 +106,18 @@ class User(Singleton):
                 if self.server.address:
                     self.server.Send(req.InitAndroidReq())
                 return Status.Ok
-            else:
-                Log.Info("登陆失败！！！, userId:{}, msg:{}".format(self.userId, backData.res.message))
+            elif backData.res.code == 400:
+                Log.Info("登陆失败！！！, userId:{}, code:{}, text:{}".format(self.userId, str(backData.res.code), backData.res.GetText()))
                 return Status.UserError + backData.res.message
+            else:
+                Log.Info("登陆失败！！！, userId:{}, code:{}, text:{}".format(self.userId, str(backData.res.code), backData.res.GetText()))
+                return Status.UnKnowError + "code:{}, ".format(backData.res.code) + backData.res.GetText()
         except Exception as es:
             Log.Error(es)
             return Status.NetError
 
     def Logout(self):
         return
-
-    def UpdateUserInfo(self, bakParam=0):
-        self.server.Send(req.GetUserInfo(), bakParam=bakParam)
 
     def UpdateUserInfoBack(self, backData):
         try:
@@ -146,10 +136,6 @@ class User(Singleton):
             Log.Error(es)
             return Status.NetError
 
-    # 签到
-    def Punched(self, bakParam=0):
-        self.server.Send(req.PunchIn(), bakParam=bakParam)
-
     def PunchedBack(self, backData):
         if backData.res.code == 200:
             Log.Info("签到成功")
@@ -159,9 +145,6 @@ class User(Singleton):
         else:
             Log.Info("签到失败！！！, userId:{}, msg:{}".format(self.userId, backData.res.message))
             return Status.Error + backData.res.message
-
-    def Register(self, data, bakParam=0):
-        return self.server.Send(req.RegisterReq(data), bakParam=bakParam)
 
     def RegisterBack(self, backData):
         try:
@@ -176,12 +159,6 @@ class User(Singleton):
         except Exception as es:
             Log.Error(es)
             return Status.NetError
-
-    def AddAndDelFavorites(self, bookId, bakParam=0):
-        self.server.Send(req.FavoritesAdd(bookId), bakParam=bakParam)
-
-    def UpdateFavorites(self, page=1, sort="da", bakParam=0):
-        self.server.Send(req.FavoritesReq(page, sort), bakParam=bakParam)
 
     def UpdateFavoritesBack(self, backData):
         try:

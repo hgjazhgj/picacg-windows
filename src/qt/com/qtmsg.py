@@ -5,7 +5,7 @@ import sys
 from PySide2.QtCore import QRectF, Qt, QPropertyAnimation, pyqtProperty, \
     QPoint, QParallelAnimationGroup, QEasingCurve
 from PySide2.QtGui import QPainter, QPainterPath, QColor, QPen
-from PySide2.QtWidgets import QLabel, QWidget, QVBoxLayout, QApplication,\
+from PySide2.QtWidgets import QLabel, QWidget, QVBoxLayout, QApplication, \
     QLineEdit, QPushButton
 
 
@@ -53,7 +53,7 @@ class BubbleLabel(QWidget):
         endPos = QPoint(
             self._desktop.screenGeometry().width() - self.width() - 100,
             self._desktop.availableGeometry().height() - self.height() * 3 - 5)
-        print(startPos, endPos)
+        # print(startPos, endPos)
         self.move(startPos)
         # 初始化动画
         self.initAnimation(startPos, endPos)

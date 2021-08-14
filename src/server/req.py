@@ -1,8 +1,8 @@
 import base64
-
-from src.util import ToolUtil
-from conf import config
 from urllib.parse import quote
+
+from conf import config
+from src.util import ToolUtil
 
 
 class ServerReq(object):
@@ -12,10 +12,11 @@ class ServerReq(object):
         self.params = params
         self.method = method
         self.isParseRes = True
+        self.useImgProxy = True
         self.proxy = {"http": config.HttpProxy, "https": config.HttpProxy}
 
 
-# 获得Ip
+# 获得分流Ip
 class InitReq(ServerReq):
     def __init__(self):
         url = config.BaseUrl + "init"
@@ -23,7 +24,7 @@ class InitReq(ServerReq):
         super(self.__class__, self).__init__(url, {}, {}, method)
 
 
-# 获得Image的Key
+# 获得分流 Image的Key
 class InitAndroidReq(ServerReq):
     def __init__(self):
         url = config.Url + "init?platform=android"
@@ -62,7 +63,7 @@ class RegisterReq(ServerReq):
                                              data, method)
 
 
-# 获得信息
+# 获得用户信息
 class GetUserInfo(ServerReq):
     def __init__(self):
         url = config.Url + "users/profile"
@@ -71,6 +72,16 @@ class GetUserInfo(ServerReq):
                                              {}, method)
 
 
+# 获得我的评论
+class GetUserCommentReq(ServerReq):
+    def __init__(self, id="", page=1):
+        url = config.Url + "users/my-comments?page={}".format(str(page))
+        method = "GET"
+        super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method),
+                                             {}, method)
+
+
+# 设置头像
 class SetAvatarInfoReq(ServerReq):
     def __init__(self, data, picFormat="jpg"):
         url = config.Url + "users/avatar"
@@ -85,6 +96,7 @@ class SetAvatarInfoReq(ServerReq):
         super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method), {"avatar": imgData}, method)
 
 
+# 设置称号
 class SetTitleReq(ServerReq):
     def __init__(self, userId, title):
         url = config.Url + "users/{}/title".format(userId)
@@ -122,6 +134,15 @@ class FavoritesReq(ServerReq):
 class FavoritesAdd(ServerReq):
     def __init__(self, bookId):
         url = config.Url + "comics/{}/favourite".format(bookId)
+        method = "POST"
+        super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method),
+                                             {}, method)
+
+
+# 添加爱心
+class BookLikeReq(ServerReq):
+    def __init__(self, bookId):
+        url = config.Url + "comics/{}/like".format(bookId)
         method = "POST"
         super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method),
                                              {}, method)
@@ -165,7 +186,7 @@ class GetComicsBookReq(ServerReq):
 
 # 获得一本书章节列表
 class GetComicsBookEpsReq(ServerReq):
-    def __init__(self, bookId="", page=""):
+    def __init__(self, bookId="", page="1"):
         url = config.Url + "comics/{}/eps?page={}".format(bookId, page)
         method = "GET"
         self.bookId = bookId
@@ -175,11 +196,21 @@ class GetComicsBookEpsReq(ServerReq):
 
 # 获得一个章节的图片信息
 class GetComicsBookOrderReq(ServerReq):
-    def __init__(self, bookId="", epsId="", page=""):
+    def __init__(self, bookId="", epsId="", page="1"):
         url = config.Url + "comics/{}/order/{}/pages?page={}".format(bookId, epsId, page)
         method = "GET"
         self.bookId = bookId
         self.epsId = epsId
+        super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method),
+                                             {}, method)
+
+
+# 获得推荐信息
+class GetComicsRecommendation(ServerReq):
+    def __init__(self, bookId=""):
+        url = config.Url + "comics/{}/recommendation".format(bookId)
+        method = "GET"
+        self.bookId = bookId
         super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method),
                                              {}, method)
 
@@ -206,13 +237,54 @@ class GetComments(ServerReq):
                                              {}, method)
 
 
+# 评论点赞
+class CommentsLikeReq(ServerReq):
+    def __init__(self, commentId=""):
+        url = config.Url + "comments/{}/like".format(commentId)
+        method = "POST"
+        super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method),
+                                             {}, method)
+
+
 # 检查更新
 class CheckUpdateReq(ServerReq):
-    def __init__(self):
-        url = config.UpdateUrl
+    def __init__(self, url=config.UpdateUrl):
         method = "GET"
         super(self.__class__, self).__init__(url, {}, {}, method)
         self.isParseRes = False
+        self.useImgProxy = False
+
+
+# 检查更新
+class CheckUpdateDatabaseReq(ServerReq):
+    def __init__(self):
+        url = config.DatabaseUpdate
+        method = "GET"
+        header = {
+            "Pragma": "No-cache",
+            "Cache-Control": "no-cache",
+            "Expires": '0'
+        }
+        super(self.__class__, self).__init__(url, header, {}, method)
+        self.isParseRes = False
+        self.useImgProxy = False
+
+
+# 下载
+class DownloadDatabaseReq(ServerReq):
+    def __init__(self, tick):
+        import time
+        day = time.strftime('%Y-%m-%d', time.localtime(tick))
+        url = config.DatabaseDownload + day + ".data"
+        method = "GET"
+        header = {
+            "Pragma": "No-cache",
+            "Cache-Control": "no-cache",
+            "Expires": '0'
+        }
+        super(self.__class__, self).__init__(url, header, {}, method)
+        self.isParseRes = False
+        self.useImgProxy = False
 
 
 # 热词
@@ -233,7 +305,7 @@ class SendComment(ServerReq):
                                              {"content": content}, method)
 
 
-# 发送评论
+# 发送子评论
 class SendCommentChildrenReq(ServerReq):
     def __init__(self, comentId="", content=""):
         url = config.Url + "comments/{}".format(comentId)
@@ -251,7 +323,7 @@ class GetCommentsChildrenReq(ServerReq):
                                              {}, method)
 
 
-# 下载图片
+# 测速
 class SpeedTestReq(ServerReq):
     Index = 0
     URLS = [
@@ -277,7 +349,7 @@ class SpeedTestReq(ServerReq):
                                              {}, method)
 
 
-# chat
+# 获取聊天频道
 class GetChatReq(ServerReq):
     def __init__(self):
         url = config.Url + "chat"
@@ -286,6 +358,7 @@ class GetChatReq(ServerReq):
                                              {}, method)
 
 
+# 获取神魔推荐
 class GetCollectionsReq(ServerReq):
     def __init__(self):
         url = config.Url + "collections"
@@ -293,6 +366,7 @@ class GetCollectionsReq(ServerReq):
         super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method), {}, method)
 
 
+# 获取随机本子
 class GetRandomReq(ServerReq):
     def __init__(self):
         url = config.Url + "comics/random"
@@ -300,3 +374,92 @@ class GetRandomReq(ServerReq):
         super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method), {}, method)
 
 
+# 获取小程序列表
+class GetAPPsReq(ServerReq):
+    def __init__(self):
+        url = config.Url + "pica-apps"
+        method = "GET"
+        super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method), {}, method)
+        self.isParseRes = False
+
+
+# 锅贴登陆
+class LoginAPPReq(ServerReq):
+    def __init__(self, url, token):
+        url = url + "/?token=" + token
+        method = "GET"
+        super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method), {}, method)
+        self.isParseRes = False
+
+
+# 锅贴列表
+class AppInfoReq(ServerReq):
+    def __init__(self, token, page=0):
+        url = "https://post-api.wikawika.xyz"
+        url = url + "/posts?offset=" + str(page)
+        method = "GET"
+        header = {
+            "Referer": url + "/?token=" + token,
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36",
+            "token": token,
+        }
+        super(self.__class__, self).__init__(url, header, {}, method)
+
+
+# 锅贴评论列表
+class AppCommentInfoReq(ServerReq):
+    def __init__(self, id, token, page=0):
+        url = "https://post-api.wikawika.xyz"
+        url = url + "/posts/{}/comments?offset={}".format(id, str(page))
+        method = "GET"
+        header = {
+            "Referer": url + "/?token=" + token,
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36",
+            "token": token,
+        }
+        super(self.__class__, self).__init__(url, header, {}, method)
+
+
+# 游戏区列表
+class GetGameReq(ServerReq):
+    def __init__(self, page=1):
+        url = config.Url + "games?page={}".format(page)
+        method = "Get"
+        super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method),
+                                             {}, method)
+
+
+# 游戏区详情
+class GetGameInfoReq(ServerReq):
+    def __init__(self, gameId):
+        url = config.Url + "games/{}".format(gameId)
+        method = "Get"
+        super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method),
+                                             {}, method)
+
+
+# 游戏区评论列表
+class GetGameCommentsReq(ServerReq):
+    def __init__(self, gameId, page=1):
+        url = config.Url + "games/{}/comments?page={}".format(gameId,page)
+        method = "Get"
+        super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method),
+                                             {}, method)
+
+
+# 游戏区评论爱心
+class GameCommentsLikeReq(ServerReq):
+    def __init__(self, gameId):
+        url = config.Url + "games/{}/like".format(gameId)
+        method = "POST"
+        super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method),
+                                             {}, method)
+
+
+# 游戏区发送评论
+class SendGameCommentsReq(ServerReq):
+    def __init__(self, gameId, content):
+        url = config.Url + "games/{}/comments".format(gameId)
+        method = "POST"
+        super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method),
+                                             {"content": content}, method)

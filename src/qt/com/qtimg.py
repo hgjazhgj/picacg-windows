@@ -1,16 +1,16 @@
 import os
 import time
-import weakref
 
-from PySide2 import QtWidgets, QtGui, QtCore
-from PySide2.QtCore import Qt, QRectF, QPointF, QSizeF, QEvent, QTextCodec, QRegExp
-from PySide2.QtGui import QColor, QPainter, QPixmap, QImage, QValidator, QRegExpValidator, QDoubleValidator, \
+from PySide2 import QtWidgets, QtCore, QtGui
+from PySide2.QtCore import Qt, QRectF, QPointF, QSizeF, QEvent
+from PySide2.QtGui import QColor, QPainter, QPixmap, QDoubleValidator, \
     QIntValidator
 from PySide2.QtWidgets import QFrame, QGraphicsPixmapItem, QGraphicsScene, QApplication, QFileDialog
 
 from conf import config
 from src.qt.com.qtbubblelabel import QtBubbleLabel
-from src.qt.util.qttask import QtTask
+from src.qt.qtmain import QtOwner
+from src.qt.util.qttask import QtTaskBase
 from src.util import Singleton, ToolUtil, Log
 from ui.img import Ui_Img
 
@@ -20,20 +20,12 @@ class QtImgMgr(Singleton):
         self.obj = QtImg()
         self.data = None
         self.waifu2xData = None
-        self._owner = None
-
-    @property
-    def owner(self):
-        return self._owner()
-
-    def SetOwner(self, owner):
-        self._owner = weakref.ref(owner)
 
     def ShowImg(self, data):
         if data:
             self.data = data
             self.waifu2xData = None
-            QtTask().CancelConver("QtImg")
+            self.obj.ClearConvert()
             if config.CanWaifu2x:
                 self.obj.comboBox.setEnabled(True)
                 self.obj.changeButton.setEnabled(True)
@@ -56,10 +48,11 @@ class QtImgMgr(Singleton):
         self.obj.headButton.setEnabled(isSet)
 
 
-class QtImg(QtWidgets.QWidget, Ui_Img):
+class QtImg(QtWidgets.QWidget, Ui_Img, QtTaskBase):
     def __init__(self):
         super(self.__class__, self).__init__()
         Ui_Img.__init__(self)
+        QtTaskBase.__init__(self)
         self.setupUi(self)
         self.bookId = ""
         self.epsId = 0
@@ -81,7 +74,7 @@ class QtImg(QtWidgets.QWidget, Ui_Img):
         self.graphicsView.setFrameStyle(QFrame.NoFrame)
         self.graphicsView.setObjectName("graphicsView")
 
-        self.graphicsView.setBackgroundBrush(QColor(Qt.white))
+        # self.graphicsView.setBackgroundBrush(QColor(Qt.white))
         self.graphicsView.setCursor(Qt.OpenHandCursor)
         self.graphicsView.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.graphicsView.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -98,6 +91,7 @@ class QtImg(QtWidgets.QWidget, Ui_Img):
 
         self.graphicsScene = QGraphicsScene(self)  # 场景
         self.graphicsView.setScene(self.graphicsScene)
+        self.graphicsItem.setTransformationMode(Qt.SmoothTransformation)
         self.graphicsScene.addItem(self.graphicsItem)
         self.graphicsView.setMinimumSize(10, 10)
         self.pixMap = QPixmap("加载中")
@@ -116,6 +110,8 @@ class QtImg(QtWidgets.QWidget, Ui_Img):
         self.scaleCnt = 0
 
         self.backStatus = ""
+
+        ToolUtil.SetIcon(self)
 
     def ShowImg(self, data):
         self.scaleCnt = 0
@@ -165,6 +161,12 @@ class QtImg(QtWidgets.QWidget, Ui_Img):
     def keyReleaseEvent(self, ev):
         if ev.key() == Qt.Key_Escape:
             self.hide()
+            return
+        if ev.key() == Qt.Key_Plus or ev.key() == Qt.Key_Equal:
+            self.zoomIn()
+            return
+        if ev.key() == Qt.Key_Minus:
+            self.zoomOut()
             return
         super(self.__class__, self).keyReleaseEvent(ev)
 
@@ -275,8 +277,7 @@ class QtImg(QtWidgets.QWidget, Ui_Img):
             model['width'] = int(self.widthEdit.text())
             model['high'] = int(self.heighEdit.text())
         self.backStatus = self.GetStatus()
-        QtTask().AddConvertTask("", QtImgMgr().data, model, self.AddConvertBack,
-                                cleanFlag="QtImg")
+        self.AddConvertTask("", QtImgMgr().data, model, self.AddConvertBack)
         self.changeButton.setText("正在转换")
         return
 
@@ -377,6 +378,6 @@ class QtImg(QtWidgets.QWidget, Ui_Img):
         data = QtImgMgr().waifu2xData if QtImgMgr().waifu2xData else QtImgMgr().data
         if not data:
             return
-        QtImgMgr().owner.userForm.UpdatePictureData(data)
+        QtOwner().owner.userForm.UpdatePictureData(data)
         QtBubbleLabel.ShowMsgEx(self, "头像上传中......")
         return

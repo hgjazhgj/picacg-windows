@@ -1,64 +1,68 @@
-import weakref
+import re
 
-from PySide2 import QtWidgets, QtGui
-from PySide2.QtCore import Qt, QSize, QEvent
-from PySide2.QtGui import  QPixmap
-from PySide2.QtWidgets import  QListWidgetItem
+from PySide2 import QtWidgets
+from PySide2.QtCore import Qt, QEvent
+from PySide2.QtGui import QPixmap, QIcon
 
 from resources import resources
-from src.qt.com.qtbubblelabel import QtBubbleLabel
+from resources.resources import DataMgr
 from src.qt.com.qtimg import QtImgMgr
-from src.server import Server, req
-from src.user.user import User
+from src.qt.qtmain import QtOwner
+from src.server import req, QtTask
 from src.util.status import Status
 from ui.user import Ui_User
 
 
 class QtUser(QtWidgets.QWidget, Ui_User):
-    def __init__(self, owner):
-        super(self.__class__, self).__init__(owner)
+    def __init__(self):
+        super(self.__class__, self).__init__()
         Ui_User.__init__(self)
         self.setupUi(self)
-        self.owner = weakref.ref(owner)
         self.setWindowTitle("哔咔漫画")
 
-        pix = QtGui.QPixmap()
-        pix.loadFromData(resources.DataMgr.GetData("placeholder_avatar"))
-        pix.scaled(self.icon.size(), Qt.KeepAspectRatio)
-        self.icon.setScaledContents(True)
-        self.icon.setPixmap(pix)
+        q = QPixmap()
+        q.loadFromData(DataMgr.GetData("icon_bookmark_on"))
+        p = QPixmap()
+        p.loadFromData(DataMgr.GetData("icon_comic"))
+        self.signButton.setIcon(QIcon(q.scaled(50, 50, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
+        self.signButton.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.toolButton11.setIcon(QIcon(p.scaled(50, 50, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
+        self.toolButton11.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+
+        p = QPixmap()
+        p.loadFromData(DataMgr.GetData("icon_like"))
+        self.toolButton4.setIcon(QIcon(p.scaled(50, 50, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
+        self.toolButton4.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+
+        p = QPixmap()
+        p.loadFromData(DataMgr.GetData("icon_comicviewer_nightfilter_on"))
+        self.toolButton5.setIcon(QIcon(p.scaled(50, 50, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
+        self.toolButton5.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+
+        self.icon.SetPicture(resources.DataMgr.GetData("placeholder_avatar"))
         self.pictureData = None
         self.icon.installEventFilter(self)
-        self.listWidget.currentRowChanged.connect(self.Switch)
-        self.listWidget.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.listWidget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.listWidget.setFrameShape(self.listWidget.NoFrame)
-        for name in ["主页", "搜索", "分类", "排行", "收藏", "历史记录", "下载", "留言板", "聊天室"]:
-            item = QListWidgetItem(
-                name,
-                self.listWidget
-            )
-            item.setSizeHint(QSize(16777215, 60))
-            item.setTextAlignment(Qt.AlignCenter)
 
-        self.stackedWidget.addWidget(self.owner().indexForm)
-        self.stackedWidget.addWidget(self.owner().searchForm)
-        self.stackedWidget.addWidget(self.owner().categoryForm)
-        self.stackedWidget.addWidget(self.owner().rankForm)
-        self.stackedWidget.addWidget(self.owner().favoriteForm)
-        self.stackedWidget.addWidget(self.owner().historyForm)
-        self.stackedWidget.addWidget(self.owner().downloadForm)
-        self.stackedWidget.addWidget(self.owner().leaveMsgForm)
-        self.stackedWidget.addWidget(self.owner().chatForm)
+        self.stackedWidget.addWidget(QtOwner().owner.indexForm)
+        self.stackedWidget.addWidget(QtOwner().owner.searchForm)
+        self.stackedWidget.addWidget(QtOwner().owner.categoryForm)
+        self.stackedWidget.addWidget(QtOwner().owner.rankForm)
+        self.stackedWidget.addWidget(QtOwner().owner.favoriteForm)
+        self.stackedWidget.addWidget(QtOwner().owner.historyForm)
+        self.stackedWidget.addWidget(QtOwner().owner.downloadForm)
+        self.stackedWidget.addWidget(QtOwner().owner.leaveMsgForm)
+        self.stackedWidget.addWidget(QtOwner().owner.chatForm)
+        self.stackedWidget.addWidget(QtOwner().owner.friedForm)
+        self.stackedWidget.addWidget(QtOwner().owner.gameForm)
+        self.stackedWidget.addWidget(QtOwner().owner.myCommentForm)
+        self.buttonGroup.buttonClicked.connect(self.Switch)
         self.isHeadUp = False
 
     def SetPicture(self, data):
-        a = QPixmap()
-        a.loadFromData(data)
         self.pictureData = data
-        self.icon.setPixmap(a)
+        self.icon.SetPicture(data)
 
-    def Switch(self, index):
+    def Switch(self, button):
         # data = {
         #     "search": 0,
         #     "category": 1,
@@ -66,21 +70,24 @@ class QtUser(QtWidgets.QWidget, Ui_User):
         #     "download": 3
         # }
         # index = data.get(name)
+        index = int(re.findall(r"\d+", button.objectName())[0])
+        # button.setChecked(True)
         self.stackedWidget.setCurrentIndex(index)
         self.stackedWidget.currentWidget().SwitchCurrent()
 
     def Sign(self):
-        self.owner().loadingForm.show()
-        self.owner().qtTask.AddHttpTask(lambda x: User().Punched(x), self.SignBack)
+        QtOwner().owner.loadingForm.show()
+        QtTask().AddHttpTask(req.PunchIn(), self.SignBack)
 
         return
 
     def SignBack(self, msg):
-        self.owner().loadingForm.close()
+        QtOwner().owner.loadingForm.close()
         if msg == Status.Ok:
             self.signButton.setEnabled(False)
-            self.signButton.setText("已签到")
-            self.owner().qtTask.AddHttpTask(lambda x: User().UpdateUserInfo(x), self.owner().loginForm.UpdateUserBack)
+            self.signButton.setText("已打卡")
+            # self.signButton.setHidden(True)
+            QtTask().AddHttpTask(req.GetUserInfo(), QtOwner().owner.loginForm.UpdateUserBack)
             self.update()
         return
 
@@ -90,9 +97,9 @@ class QtUser(QtWidgets.QWidget, Ui_User):
         self.title.setText(title)
         self.level.setText("LV"+str(level))
         self.exp.setText("exp: " + str(exp))
-        if not sign:
-            self.signButton.setEnabled(True)
-            self.signButton.setText("签到")
+        if sign:
+            self.signButton.setText("已打卡")
+            self.signButton.setEnabled(False)
         self.update()
 
     def UpdatePictureData(self, data):
@@ -102,16 +109,16 @@ class QtUser(QtWidgets.QWidget, Ui_User):
         self.icon.setText("头像上传中......")
         self.isHeadUp = True
         QtImgMgr().SetHeadStatus(not self.isHeadUp)
-        self.owner().qtTask.AddHttpTask(lambda x: Server().Send(req.SetAvatarInfoReq(data), bakParam=x), self.UpdatePictureDataBack)
+        QtTask().AddHttpTask(req.SetAvatarInfoReq(data), self.UpdatePictureDataBack)
         return
 
     def UpdatePictureDataBack(self, msg):
         self.isHeadUp = False
         QtImgMgr().SetHeadStatus(not self.isHeadUp)
         if msg == Status.Ok:
-            self.owner().loginForm.InitUser()
+            QtOwner().owner.loginForm.InitUser()
         else:
-            self.owner().msgForm.ShowError(msg)
+            QtOwner().owner.msgForm.ShowError(msg)
 
     def eventFilter(self, obj, event):
         if event.type() == QEvent.MouseButtonPress:

@@ -1,15 +1,18 @@
 
 from PySide2.QtCore import QSize
 
+from conf import config
 from src.util import ToolUtil
 
 
 class QtFileData(object):
     Downloading = "开始下载"
+    Converting = "转换中"
     DownloadSuc = "下载完成"
     DownloadError = "下载错误"
     DownloadReset = "重新下载"
 
+    WaifuWait =  "等待中"
     WaifuStateStart = "解码开始"
     WaifuStateCancle = "不解码"
     WaifuStateEnd = "解码完成"
@@ -23,11 +26,15 @@ class QtFileData(object):
         self.scaleH = 0
         self.state = self.Downloading
         self.data = None
-        self.waifuState = self.WaifuStateStart
+        self.waifuState = self.WaifuStateCancle
         self.waifuDataSize = 0
         self.waifuData = None
         self.waifuTick = 0
+        self.waifu2xTaskId = 0
         self.model = {}
+
+        self.cacheImage = None
+        self.cacheWaifu2xImage = None
 
         self.downloadSize = 0
 
@@ -43,9 +50,11 @@ class QtFileData(object):
         if not data:
             self.state = self.DownloadError
             return
+        if config.IsOpenWaifu:
+            self.waifuState = self.WaifuWait
         self.data = data
         self.w, self.h = ToolUtil.GetPictureSize(data)
-        self.model = ToolUtil.GetLookScaleModel(self.w, self.h, category)
+        self.model = ToolUtil.GetLookScaleModel(category)
         self.state = self.DownloadSuc
         self.size = len(data)
 
