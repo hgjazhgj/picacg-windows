@@ -1,4 +1,14 @@
-# picacg-windows(哔咔漫画) | [ehentai-windows(E绅士)](https://github.com/tonquer/ehentai-windows)
+# picacg-windows(哔咔漫画) | [ehentai-windows(E绅士)](https://github.com/tonquer/ehentai-windows)  
+
+[![GitHub](https://img.shields.io/github/license/tonquer/picacg-windows)](https://raw.githubusercontent.com/tonquer/picacg-windows/master/LICENSE.txt) 
+[![GitHub](https://img.shields.io/github/workflow/status/tonquer/picacg-windows/windows-x64?label=Windows)](https://github.com/tonquer/picacg-windows/actions)
+[![GitHub](https://img.shields.io/github/workflow/status/tonquer/picacg-windows/macos-x64?label=MacOS)](https://github.com/tonquer/picacg-windows/actions)
+[![GitHub](https://img.shields.io/github/workflow/status/tonquer/picacg-windows/linux-x64?label=Linux)](https://github.com/tonquer/picacg-windows/actions)  
+![Relese](https://img.shields.io/badge/Python-3.7.9%2B-brightgreen)
+[![Relese](https://img.shields.io/github/v/release/tonquer/picacg-windows)](https://github.com/tonquer/picacg-windows/releases)
+[![Relese](https://img.shields.io/github/downloads/tonquer/picacg-windows/latest/total)](https://github.com/tonquer/picacg-windows/releases)
+[![Relese](https://img.shields.io/github/downloads/tonquer/picacg-windows/total)](https://github.com/tonquer/picacg-windows/releases)
+
 - 哔咔漫画PC客户端（支持window、Linux和macOS），界面使用QT。
 - 该项目仅供技术研究使用，请勿用于其他用途。
 - 如果觉得本项目对你有所帮助，请点个star关注，感谢支持
@@ -106,12 +116,16 @@
   ````
   * 打包完成以后可以在 dist 目录下找到应用程序 (.app)
 
-## 界面
-* 代理设置
-![代理设置](example/代理设置.gif)
+## 关于代理问题
+  1. 如果你没有代理软件，请在设置中http代理一栏，取消勾选代理，尝试使用分流2，3连接。
+  2. 如果你有代理软件，请在设置中http代理一栏，勾选代理，并且填入你软件提供的代理地址比如  
+  v2ray可能是http://127.0.0.1:10809  
+  shadowsocks可能是http://127.0.0.1:1080  
 
-* 分流登录
-![分流登录](example/登录.gif)
+## 界面
+
+* 登录
+![登录](example/登录.gif)
 
 * 搜索
 ![搜索](example/搜索.gif)
@@ -121,6 +135,9 @@
 
 * 下载
 ![下载](example/下载.gif)
+
+* 看图
+![看图](example/看图.gif)
 
 * waifu2x
 ![waifu2x](example/waifu2x.gif)
