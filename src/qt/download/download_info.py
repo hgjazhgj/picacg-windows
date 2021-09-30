@@ -5,6 +5,7 @@ from conf import config
 from src.index.book import BookMgr, Book
 from src.qt.util.qttask import QtTaskBase
 from src.server import req
+from src.server.sql_server import SqlServer
 from src.util import ToolUtil, Log
 from src.util.status import Status
 
@@ -144,21 +145,30 @@ class DownloadInfo(QtTaskBase):
 
     def AddBookInfos(self):
         self.SetStatu(self.Reading)
+        self.OpenLocalBack()
+
+    def OpenLocalBack(self):
+        self.AddSqlTask("book", self.bookId, SqlServer.TaskTypeCacheBook, callBack=self.SendLocalBack)
+
+    def SendLocalBack(self, books):
         self.AddHttpTask(req.GetComicsBookReq(self.bookId), self.AddBookInfosBack)
 
     def AddBookInfosBack(self, msg=""):
-        if msg != Status.Ok:
+        info = BookMgr().books.get(self.bookId)
+        if not info:
             self.SetStatu(self.Error)
             return
         else:
             book = BookMgr().books.get(self.bookId)
             self.title = book.title
-            self.savePath = os.path.join(os.path.join(config.SavePath, config.SavePathDir),
+            if not self.savePath:
+                self.savePath = os.path.join(os.path.join(config.SavePath, config.SavePathDir),
+                                            ToolUtil.GetCanSaveName(self.title))
+                self.savePath = os.path.join(self.savePath, "original")
+            elif not self.convertPath:
+                self.convertPath = os.path.join(os.path.join(config.SavePath, config.SavePathDir),
                                          ToolUtil.GetCanSaveName(self.title))
-            self.savePath = os.path.join(self.savePath, "原图")
-            self.convertPath = os.path.join(os.path.join(config.SavePath, config.SavePathDir),
-                                         ToolUtil.GetCanSaveName(self.title))
-            self.convertPath = os.path.join(self.convertPath, "waifu2x")
+                self.convertPath = os.path.join(self.convertPath, "waifu2x")
             self.AddBookEpsInfos()
         return
 

@@ -36,10 +36,10 @@ class QtChat(QtWidgets.QWidget, QtTaskBase):
             if data.get("code") == 200:
                 infos = data.get("data", {}).get("chatList", {})
                 for index, info in enumerate(infos):
-                    self.listWidget.AddUserItem(info, index+1)
+                    self.listWidget.AddUserItem(info, index+1, True)
         except Exception as es:
             Log.Error(es)
-            QtOwner().owner.msgForm.ShowMsg(Status.UnKnowError)
+            QtOwner().owner.msgForm.ShowMsg(QtOwner().owner.GetStatusStr(Status.UnKnowError))
         return
 
     def OpenChatRoom(self, modelIndex):

@@ -13,6 +13,7 @@ from qss.qss import QssDataMgr
 from resources.resources import DataMgr
 from src.index.category import CateGoryBase
 from src.qt.com.qt_scroll import SmoothMode
+from src.qt.com.qt_user_info import QtUserInfo
 from src.qt.com.qtcomment import QtComment
 from src.qt.com.qtimg import  QtImgMgr
 
@@ -154,8 +155,8 @@ class QtBookList(QListWidget, QtTaskBase):
         self.LoadCallBack = None
         self.OpenBack = None
         self.LikeBack = None
+        self.KillBack = None
         self.parentId = -1
-        self.popMenu = None
         QScroller.grabGesture(self, QScroller.LeftMouseButtonGesture)
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.verticalScrollBar().setStyleSheet(QssDataMgr().GetData('qt_list_scrollbar'))
@@ -173,7 +174,7 @@ class QtBookList(QListWidget, QtTaskBase):
         self.scrollStamps = deque()
         self.stepsLeftQueue = deque()
         self.smoothMoveTimer = QTimer(self)
-        self.smoothMode = SmoothMode(SmoothMode.LINEAR)
+        self.smoothMode = SmoothMode(SmoothMode.COSINE)
         self.smoothMoveTimer.timeout.connect(self.__smoothMove)
         self.qEventParam = []
         self.wheelStatus = True
@@ -187,20 +188,9 @@ class QtBookList(QListWidget, QtTaskBase):
         self.setResizeMode(self.Adjust)
         self.LoadCallBack = callBack
 
-        self.popMenu = QMenu(self)
-        action = self.popMenu.addAction("打开")
-        action.triggered.connect(self.OpenBookInfoHandler)
-        action = self.popMenu.addAction("查看封面")
-        action.triggered.connect(self.OpenPicture)
-        action = self.popMenu.addAction("重下封面")
-        action.triggered.connect(self.ReDownloadPicture)
-        action = self.popMenu.addAction("复制标题")
-        action.triggered.connect(self.CopyHandler)
-        action = self.popMenu.addAction("下载")
-        action.triggered.connect(self.DownloadHandler)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.doubleClicked.connect(self.OpenBookInfo)
-        self.customContextMenuRequested.connect(self.SelectMenu)
+        self.customContextMenuRequested.connect(self.SelectMenuBook)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
     def ClearWheelEvent(self):
@@ -282,21 +272,23 @@ class QtBookList(QListWidget, QtTaskBase):
 
     def InstallCategory(self):
         self.doubleClicked.disconnect(self.OpenBookInfo)
-        self.popMenu = QMenu(self)
-        action = self.popMenu.addAction("查看封面")
-        action.triggered.connect(self.OpenPicture)
+
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.SelectMenuCategory)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         return
 
     def InstallDel(self):
-        action = self.popMenu.addAction("刪除")
-        action.triggered.connect(self.DelHandler)
+        self.customContextMenuRequested.disconnect(self.SelectMenuBook)
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.SelectMenuDel)
 
-    def InitUser(self, callBack=None, openBack=None, likeBack=None):
+    def InitUser(self, callBack=None, openBack=None, likeBack=None, killBack=None):
         self.setFrameShape(self.NoFrame)  # 无边框
         self.LoadCallBack = callBack
         self.OpenBack = openBack
         self.LikeBack = likeBack
+        self.KillBack = killBack
         self.setFocusPolicy(Qt.NoFocus)
         self.setWindowFlags(self.windowFlags() &~ Qt.ItemIsSelectable)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -360,7 +352,7 @@ class QtBookList(QListWidget, QtTaskBase):
             likesCount = str(v.get("totalLikes", ""))
 
         elif isinstance(v, DbBook):
-            title = v.title2
+            title = v.title
             url = v.fileServer
             path = v.path
             _id = v.id
@@ -371,7 +363,7 @@ class QtBookList(QListWidget, QtTaskBase):
             if isShowHistory:
                 info = QtOwner().owner.historyForm.GetHistory(_id)
                 if info:
-                    categoryStr = "上次观看到第{}章/{}章".format(info.epsId+1, v.epsCount)
+                    categoryStr = self.tr("上次观看到第")+str(info.epsId+1) + self.tr("章")+ "/" + str(v.epsCount)+ self.tr("章")
             else:
                 categories = v.categories.split(",")
 
@@ -395,6 +387,7 @@ class QtBookList(QListWidget, QtTaskBase):
             title = v.name
             path = v.path
             url = v.url
+            categoryStr = "{}看过".format(ToolUtil.GetUpdateStrByTick(v.tick))
 
         else:
             assert False
@@ -405,7 +398,7 @@ class QtBookList(QListWidget, QtTaskBase):
             title += "<font color=#d5577c>{}</font>".format("(完)")
 
         if categories:
-            categoryStr = "分类：" + "，".join(categories)
+            categoryStr = self.tr("分类：") + "，".join(categories)
 
         if updated_at:
             dayStr = ToolUtil.GetUpdateStr(updated_at)
@@ -417,22 +410,31 @@ class QtBookList(QListWidget, QtTaskBase):
         item = QListWidgetItem(self)
         item.setSizeHint(iwidget.sizeHint())
         self.setItemWidget(item, iwidget)
-        iwidget.picIcon.setText("图片加载中...")
+        iwidget.picIcon.setText(self.tr("图片加载中..."))
         if url and path and config.IsLoadingPicture:
             self.AddDownloadTask(url, path, None, self.LoadingPictureComplete, True, index, True)
             pass
 
-    def AddUserItem(self, info, floor):
+    def AddUserItem(self, info, floor, hideKillButton=False):
         content = info.get("content")
         if not content:
             content = info.get("description")
-        user = info.get("_user")
-        if not user:
-            user = User().userInfo
-        name = user.get("name")
-        avatar = user.get("avatar", {})
-        if not avatar:
+        if info.get("title"):
+            name = info.get("title")
             avatar = info.get("avatar")
+            slogan = ""
+            level = ""
+            title = ""
+            character = ""
+        else:
+            user = info.get("_user", {})
+            name = user.get("name", "")
+            avatar = user.get("avatar", {})
+            title = user.get("title", "")
+            level = user.get("level", 1)
+            character = user.get("character", "")
+            slogan = user.get("slogan", "")
+
         createdTime = info.get("created_at", "")
         commentsCount = info.get("commentsCount", "")
         if info.get('_id', ""):
@@ -440,9 +442,7 @@ class QtBookList(QListWidget, QtTaskBase):
         else:
             commnetId = info.get("url")
         likesCount = info.get("likesCount", "")
-        title = user.get("title", "")
-        level = user.get("level", 1)
-        character = user.get("character", "")
+
         if not avatar:
             url = ""
             path = ""
@@ -461,6 +461,7 @@ class QtBookList(QListWidget, QtTaskBase):
             linkData = info.get("_comic").get("title", "")
             iwidget.linkLabel.setText("<u><font color=#d5577c>{}</font></u>".format(linkData))
             iwidget.linkLabel.setVisible(True)
+            iwidget.killButton.setVisible(False)
 
         if info.get("isLiked"):
             iwidget.SetLike()
@@ -471,7 +472,9 @@ class QtBookList(QListWidget, QtTaskBase):
         if likesCount == "":
             iwidget.starButton.hide()
             iwidget.commentLabel.setTextInteractionFlags(Qt.TextSelectableByKeyboard)
-
+        if hideKillButton:
+            iwidget.killButton.setVisible(False)
+        iwidget.setToolTip(slogan)
         iwidget.id = commnetId
         iwidget.commentLabel.setText(content)
         iwidget.nameLabel.setText(name)
@@ -481,10 +484,50 @@ class QtBookList(QListWidget, QtTaskBase):
         iwidget.titleLabel.setText(" " + title + " ")
         iwidget.url = url
         iwidget.path = path
-        if createdTime:
-            dayStr = ToolUtil.GetUpdateStr(createdTime)
-            iwidget.dateLabel.setText(dayStr)
-        iwidget.indexLabel.setText("{}楼".format(str(floor)))
+        dayStr = ToolUtil.GetUpdateStr(createdTime)
+        iwidget.dateLabel.setText(dayStr)
+        iwidget.indexLabel.setText("{}".format(str(floor))+self.tr("楼"))
+
+        item = QListWidgetItem(self)
+        item.setSizeHint(iwidget.sizeHint())
+        self.setItemWidget(item, iwidget)
+        if url and config.IsLoadingPicture:
+            self.AddDownloadTask(url, path, None, self.LoadingPictureComplete, True, index, True)
+        if "pica-web.wakamoment.tk" not in character and config.IsLoadingPicture:
+            self.AddDownloadTask(character, "", None, self.LoadingHeadComplete, True, index, True)
+
+    def AddUserKindItem(self, info, floor):
+        content = info.get("slogan", "")
+        name = info.get("name")
+        avatar = info.get("avatar", {})
+        commnetId = info.get('_id', "")
+        title = info.get("title", "")
+        level = info.get("level", 1)
+        character = info.get("character", "")
+        if not avatar:
+            url = ""
+            path = ""
+        elif isinstance(avatar, str):
+            url = avatar
+            path = ""
+        else:
+            url = avatar.get("fileServer", "")
+            path = avatar.get("path", "")
+
+        index = self.count()
+        iwidget = QtUserInfo(self)
+        iwidget.nameLabel.setCursor(Qt.PointingHandCursor)
+        iwidget.nameLabel.installEventFilter(iwidget)
+        iwidget.setToolTip(info.get("slogan", ""))
+        iwidget.id = commnetId
+        iwidget.commentLabel.setText(content)
+        iwidget.nameLabel.setText(name)
+        iwidget.starButton.setText("({})".format(info.get('comicsUploaded')))
+        iwidget.levelLabel.setText(" LV" + str(level) + " ")
+        iwidget.titleLabel.setText(" " + title + " ")
+        iwidget.url = url
+        iwidget.path = path
+        iwidget.indexLabel.setText(self.tr("第")+"{}".format(str(floor)))
 
         item = QListWidgetItem(self)
         item.setSizeHint(iwidget.sizeHint())
@@ -503,7 +546,7 @@ class QtBookList(QListWidget, QtTaskBase):
         else:
             item = self.item(index)
             widget = self.itemWidget(item)
-            widget.picIcon.setText("图片加载失败")
+            widget.picIcon.setText(self.tr("图片加载失败"))
         return
 
     def LoadingHeadComplete(self, data, status, index):
@@ -522,10 +565,49 @@ class QtBookList(QListWidget, QtTaskBase):
         # 防止异步加载时，信息错乱
         self.ClearTask()
 
-    def SelectMenu(self, pos):
+    def SelectMenuCategory(self, pos):
         index = self.indexAt(pos)
         if index.isValid():
-            self.popMenu.exec_(QCursor.pos())
+            popMenu = QMenu(self)
+            action = popMenu.addAction(self.tr("查看封面"))
+            action.triggered.connect(self.OpenPicture)
+            popMenu.exec_(QCursor.pos())
+        pass
+
+    def SelectMenuDel(self, pos):
+        index = self.indexAt(pos)
+        if index.isValid():
+            popMenu = QMenu(self)
+            action = popMenu.addAction(self.tr("打开"))
+            action.triggered.connect(self.OpenBookInfoHandler)
+            action = popMenu.addAction(self.tr("查看封面"))
+            action.triggered.connect(self.OpenPicture)
+            action = popMenu.addAction(self.tr("重下封面"))
+            action.triggered.connect(self.ReDownloadPicture)
+            action = popMenu.addAction(self.tr("复制标题"))
+            action.triggered.connect(self.CopyHandler)
+            action = popMenu.addAction(self.tr("下载"))
+            action.triggered.connect(self.DownloadHandler)
+            action = popMenu.addAction(self.tr("刪除"))
+            action.triggered.connect(self.DelHandler)
+            popMenu.exec_(QCursor.pos())
+        pass
+
+    def SelectMenuBook(self, pos):
+        index = self.indexAt(pos)
+        if index.isValid():
+            popMenu = QMenu(self)
+            action = popMenu.addAction(self.tr("打开"))
+            action.triggered.connect(self.OpenBookInfoHandler)
+            action = popMenu.addAction(self.tr("查看封面"))
+            action.triggered.connect(self.OpenPicture)
+            action = popMenu.addAction(self.tr("重下封面"))
+            action.triggered.connect(self.ReDownloadPicture)
+            action = popMenu.addAction(self.tr("复制标题"))
+            action.triggered.connect(self.CopyHandler)
+            action = popMenu.addAction(self.tr("下载"))
+            action.triggered.connect(self.DownloadHandler)
+            popMenu.exec_(QCursor.pos())
         pass
 
     def DownloadHandler(self):
@@ -593,7 +675,7 @@ class QtBookList(QListWidget, QtTaskBase):
             index = self.row(item)
             if widget.url and config.IsLoadingPicture:
                 widget.picIcon.setPixmap(None)
-                widget.picIcon.setText("图片加载中")
+                widget.picIcon.setText(self.tr("图片加载中"))
                 self.AddDownloadTask(widget.url, widget.path, None, self.LoadingPictureComplete, True, index, False)
                 pass
 

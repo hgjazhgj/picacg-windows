@@ -1,4 +1,5 @@
 from PySide2 import QtWidgets
+from PySide2.QtGui import Qt
 from PySide2.QtWidgets import QCheckBox
 
 from src.index.category import CateGoryMgr
@@ -30,6 +31,7 @@ class QtSearch(QtWidgets.QWidget, Ui_search, QtTaskBase):
 
         self.keywordList.itemClicked.connect(self.ClickKeywordListItem)
         self.SetSearch()
+        # self.sucLabel.setTextInteractionFlags(Qt.TextBrowserInteraction)
 
         self.allCategorise = [
                     "嗶咔漢化",
@@ -129,7 +131,7 @@ class QtSearch(QtWidgets.QWidget, Ui_search, QtTaskBase):
         QtOwner().owner.userForm.toolButton1.click()
 
         if self.localBox.isChecked():
-            self.searchEdit.setText(Converter('zh-hans').convert(text).replace("'", "\""))
+            self.searchEdit.setText(text)
         else:
             self.searchEdit.setText(text)
         self.searchEdit.listView.hide()
@@ -175,6 +177,7 @@ class QtSearch(QtWidgets.QWidget, Ui_search, QtTaskBase):
             self.sortKey.setEnabled(True)
             self.sortId.setEnabled(True)
             self.comboBox.setEnabled(False)
+            self.creatorBox.setEnabled(True)
         else:
             self.authorBox.setEnabled(False)
             self.desBox.setEnabled(False)
@@ -184,13 +187,14 @@ class QtSearch(QtWidgets.QWidget, Ui_search, QtTaskBase):
             self.sortKey.setEnabled(False)
             self.sortId.setEnabled(False)
             self.comboBox.setEnabled(True)
+            self.creatorBox.setEnabled(False)
 
     def SendSearch(self, data, page):
         self.index = 1
         self.searchEdit.listView.hide()
         if self.localBox.isChecked():
             QtOwner().owner.loadingForm.show()
-            sql = SqlServer.Search(data, self.titleBox.isChecked(), self.authorBox.isChecked(), self.desBox.isChecked(), self.tagsBox.isChecked(), self.categoryBox.isChecked(), page, self.sortKey.currentIndex(), self.sortId.currentIndex())
+            sql = SqlServer.Search(data, self.titleBox.isChecked(), self.authorBox.isChecked(), self.desBox.isChecked(), self.tagsBox.isChecked(), self.categoryBox.isChecked(), self.creatorBox.isChecked(), page, self.sortKey.currentIndex(), self.sortId.currentIndex())
             self.AddSqlTask("book", sql, SqlServer.TaskTypeSelectBook, callBack=self.SendLocalBack, backParam=page)
         else:
             QtOwner().owner.loadingForm.show()
@@ -229,10 +233,47 @@ class QtSearch(QtWidgets.QWidget, Ui_search, QtTaskBase):
         sortId = sort[self.comboBox.currentIndex()]
         if self.localBox.isChecked() and self.categories in self.allCategorise:
             QtOwner().owner.loadingForm.show()
-            sql = SqlServer.Search(self.categories, False, False, False, False, True, page, self.sortKey.currentIndex(), self.sortId.currentIndex())
+            sql = SqlServer.Search(self.categories, False, False, False, False, True, False, page, self.sortKey.currentIndex(), self.sortId.currentIndex())
             self.AddSqlTask("book", sql, SqlServer.TaskTypeSelectBook, callBack=self.SendLocalBack, backParam=page)
         else:
             self.AddHttpTask(req.CategoriesSearchReq(page, self.categories, sortId), self.SendSearchBack)
+
+    def SearchAutor(self, text):
+        self.titleBox.setChecked(False)
+        self.authorBox.setChecked(True)
+        self.desBox.setChecked(False)
+        self.tagsBox.setChecked(False)
+        self.categoryBox.setChecked(False)
+        self.creatorBox.setChecked(False)
+        self.Search2(text)
+
+    def SearchTags(self, text):
+        self.titleBox.setChecked(False)
+        self.authorBox.setChecked(False)
+        self.desBox.setChecked(False)
+        self.tagsBox.setChecked(True)
+        self.categoryBox.setChecked(False)
+        self.creatorBox.setChecked(False)
+        self.Search2(text)
+
+    def SearchCategories(self, text):
+        self.titleBox.setChecked(True)
+        self.authorBox.setChecked(True)
+        self.desBox.setChecked(True)
+        self.tagsBox.setChecked(True)
+        self.categoryBox.setChecked(True)
+        self.creatorBox.setChecked(False)
+        self.searchEdit.setText("")
+        self.OpenSearchCategories(text)
+
+    def SearchCreator(self, creator):
+        self.titleBox.setChecked(False)
+        self.authorBox.setChecked(False)
+        self.desBox.setChecked(False)
+        self.tagsBox.setChecked(False)
+        self.categoryBox.setChecked(False)
+        self.creatorBox.setChecked(True)
+        self.Search2(creator)
 
     def InitKeyWord(self):
         self.AddHttpTask(req.GetKeywords(), self.SendKeywordBack)
@@ -257,7 +298,7 @@ class QtSearch(QtWidgets.QWidget, Ui_search, QtTaskBase):
                 self.CheckCategoryShowItem()
             else:
                 # QtWidgets.QMessageBox.information(self, '未搜索到结果', "未搜索到结果", QtWidgets.QMessageBox.Yes)
-                QtOwner().owner.msgForm.ShowError("未搜索到结果")
+                QtOwner().owner.msgForm.ShowError(self.tr("未搜索到结果"))
         except Exception as es:
             Log.Error(es)
         pass
@@ -320,9 +361,9 @@ class QtSearch(QtWidgets.QWidget, Ui_search, QtTaskBase):
         isClick = self.categoryList.ClickItem(item)
         data = item.text()
         if isClick:
-            QtOwner().owner.msgForm.ShowMsg("屏蔽" + data)
+            QtOwner().owner.msgForm.ShowMsg(self.tr("屏蔽") + data)
         else:
-            QtOwner().owner.msgForm.ShowMsg("取消屏蔽" + data)
+            QtOwner().owner.msgForm.ShowMsg(self.tr("取消屏蔽") + data)
         self.CheckCategoryShowItem()
 
     def CheckCategoryShowItem(self):
@@ -340,8 +381,26 @@ class QtSearch(QtWidgets.QWidget, Ui_search, QtTaskBase):
                 item.setHidden(False)
 
     def ClickKeywordListItem(self, item):
+        self.titleBox.setChecked(True)
+        self.authorBox.setChecked(True)
+        self.desBox.setChecked(True)
+        self.tagsBox.setChecked(True)
+        self.categoryBox.setChecked(True)
+        self.creatorBox.setChecked(False)
         self.Search2(item.text())
 
     def focusOutEvent(self, ev):
         self.searchEdit.listView.hide()
         return super(self.__class__, self).focusOutEvent(ev)
+
+    def Update(self):
+        QtOwner().owner.InitUpdateDatabase()
+
+    def SetUpdateText(self, text, color, enable):
+        self.sucLabel.setText(text)
+        self.sucLabel.setStyleSheet("background-color:transparent;color:{}".format(color))
+        self.sucLabel.setEnabled(enable)
+        if enable:
+            self.sucLabel.setCursor(Qt.PointingHandCursor)
+        else:
+            self.sucLabel.setCursor(Qt.ArrowCursor)

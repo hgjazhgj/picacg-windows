@@ -3,10 +3,11 @@ import weakref
 
 from PySide2 import QtWidgets
 from PySide2.QtCore import QEvent
-from PySide2.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QLineEdit, QPushButton
+from PySide2.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QLineEdit, QPushButton, QMessageBox
 
-from src.qt.com.qtbubblelabel import QtBubbleLabel
+from src.qt.com.qtmsg import QtMsgLabel
 from src.qt.com.qtloading import QtLoading
+from src.qt.qtmain import QtOwner
 from src.qt.util.qttask import QtTaskBase
 from src.server import req, Log
 from ui.leavemsg import Ui_LeaveMsg
@@ -14,20 +15,22 @@ from ui.qtlistwidget import QtBookList
 
 
 class QtCommentList(QtWidgets.QWidget, Ui_LeaveMsg, QtTaskBase):
-    def __init__(self):
-        QtWidgets.QWidget.__init__(self)
+    def __init__(self, parent=None):
+        QtWidgets.QWidget.__init__(self, parent)
         Ui_LeaveMsg.__init__(self)
         QtTaskBase.__init__(self)
         self.setupUi(self)
         self.reqSendComment = None
         self.reqGetComment = None
         self.reqLikeComment = None
+        self.reqKillComment = None
         self.loadingForm2 = QtLoading(self)
         self.bookId = ""
-        self.listWidget.InitUser(self.LoadNextPage, self.OpenCommentInfo, self.AddLike)
+        self.listWidget.InitUser(self.LoadNextPage, self.OpenCommentInfo, self.AddLike, self.KillComment)
+        self.commentButton.clicked.connect(self.SendComment)
 
         self.childrenListWidget = QtBookList(None)
-        self.childrenListWidget.InitUser(self.LoadChildrenNextPage, likeBack=self.AddLike)
+        self.childrenListWidget.InitUser(self.LoadChildrenNextPage, likeBack=self.AddLike, killBack=self.KillComment)
         self.childrenWidget = QtWidgets.QWidget()
         layout = QHBoxLayout(self.childrenWidget)
 
@@ -46,10 +49,11 @@ class QtCommentList(QtWidgets.QWidget, Ui_LeaveMsg, QtTaskBase):
         layout3.addWidget(self.childrenListWidget)
         layout.addLayout(layout3)
 
-    def InitReq(self, reqGetComment, reqSendComment, reqLikeComment):
+    def InitReq(self, reqGetComment, reqSendComment, reqLikeComment, reqKillComment):
         self.reqSendComment = reqSendComment
         self.reqGetComment = reqGetComment
         self.reqLikeComment = reqLikeComment
+        self.reqKillComment = reqKillComment
 
     def SendCommentChildren(self):
         data = self.commentLine2.text()
@@ -84,7 +88,7 @@ class QtCommentList(QtWidgets.QWidget, Ui_LeaveMsg, QtTaskBase):
                 self.AddHttpTask(req.GetCommentsChildrenReq(widget.id), self.LoadCommentInfoBack, backParam=index)
             else:
                 self.loadingForm2.close()
-                QtBubbleLabel.ShowErrorEx(self, data.get("message", "错误"))
+                QtMsgLabel.ShowErrorEx(self, data.get("message", "错误"))
             self.commentLine2.setText("")
         except Exception as es:
             self.loadingForm2.close()
@@ -181,6 +185,47 @@ class QtCommentList(QtWidgets.QWidget, Ui_LeaveMsg, QtTaskBase):
             widget.SetLike(isLike)
             widget.update()
         self.update()
+
+    def KillComment(self, cfgId):
+        for index in range(self.listWidget.count()):
+            item = self.listWidget.item(index)
+            if not item:
+                continue
+            widget = self.listWidget.itemWidget(item)
+            if not widget:
+                continue
+            if widget.id != cfgId:
+                continue
+            r = QtOwner().ShowMsgBox(QMessageBox.Question, self.tr('举报'),
+                                     self.tr('是否举报') + widget.nameLabel.text() + ",\n" + self.tr(
+                                         "评论：") +"\n"+ widget.commentLabel.text() + "\n")
+            if r == 0:
+                self.loadingForm2.show()
+                self.AddHttpTask(self.reqKillComment(widget.id), self.KillCommentBack, backParam=cfgId)
+
+        for index in range(self.childrenListWidget.count()):
+            item = self.childrenListWidget.item(index)
+            if not item:
+                continue
+            widget = self.childrenListWidget.itemWidget(item)
+            if not widget:
+                continue
+            if widget.id != cfgId:
+                continue
+            r = QtOwner().ShowMsgBox(QMessageBox.Question, self.tr('举报'), self.tr('是否举报') +widget.nameLabel.text() + ",\n"  +self.tr("评论：\n")+widget.commentLabel.text()+"\n")
+            if r == 0:
+                self.loadingForm2.show()
+                self.AddHttpTask(self.reqKillComment(widget.id), self.KillCommentBack, backParam=cfgId)
+
+    def KillCommentBack(self, data, backId):
+        self.loadingForm2.close()
+        try:
+            data = json.loads(data)
+            if data.get("code") != 200:
+                return
+            QtMsgLabel().ShowMsgEx(self.parent(), data.get('data').get("message"))
+        except Exception as es:
+            Log.Error(es)
 
     def LoadChildrenNextPage(self):
         index = self.childrenListWidget.parentId
@@ -294,10 +339,14 @@ class QtCommentList(QtWidgets.QWidget, Ui_LeaveMsg, QtTaskBase):
                         self.listWidget.AddUserItem(info, floor)
 
                 for index, info in enumerate(comments.get("docs")):
+                    if self.reqGetComment == req.GetUserCommentReq:
+                        from src.user.user import User
+                        info["_user"] = User().userInfo
                     floor = total - ((page - 1) * limit + index)
                     self.listWidget.AddUserItem(info, floor)
             return
         except Exception as es:
+            QtMsgLabel.ShowErrorEx(self, self.tr("评论加载失败"))
             Log.Error(es)
 
     def SendComment(self):
@@ -316,7 +365,7 @@ class QtCommentList(QtWidgets.QWidget, Ui_LeaveMsg, QtTaskBase):
                 self.AddHttpTask(self.reqGetComment(self.bookId), self.GetCommnetBack)
             else:
                 self.loadingForm2.close()
-                QtBubbleLabel.ShowErrorEx(self, data.get("message", "错误"))
+                QtMsgLabel.ShowErrorEx(self, data.get("message", "错误"))
             self.commentLine.setText("")
         except Exception as es:
             self.loadingForm2.close()

@@ -60,7 +60,7 @@ class QtFriedMsg(QtWidgets.QWidget, Ui_FriedMsg, QtTaskBase):
         # self.name.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.popMenu = QMenu(self)
 
-        action = self.popMenu.addAction("复制")
+        action = self.popMenu.addAction(self.tr("复制"))
         action.triggered.connect(self.CopyHandler)
 
         self.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -156,14 +156,14 @@ class QtFriedMsg(QtWidgets.QWidget, Ui_FriedMsg, QtTaskBase):
             self.listWidget.UpdatePage(self.page, pages)
             for index, v in enumerate(data.get('data').get("comments")):
                 floor = total - ((self.listWidget.page - 1) * self.limit + index)
-                self.listWidget.AddUserItem(v, floor)
+                self.listWidget.AddUserItem(v, floor, True)
 
             self.listWidget.setVisible(True)
             self.page = self.listWidget.page
         except Exception as es:
             self.page = self.listWidget.page
             Log.Error(es)
-            QtOwner().owner.msgForm.ShowMsg(Status.UnKnowError + errMsg)
+            QtOwner().owner.msgForm.ShowMsg(QtOwner().owner.GetStatusStr(Status.UnKnowError) + errMsg)
         return
 
     def LoadNextPage(self):

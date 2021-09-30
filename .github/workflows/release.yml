@@ -27,8 +27,10 @@ jobs:
   release:
     needs: [setup]
     runs-on: ubuntu-latest
+    outputs:
+      Up_Url: ${{ steps.create_release.outputs.upload_url }}
     steps:
-      - name: create-release
+      - name: create_release
         id: create_release
         uses: actions/create-release@v1
         env:
@@ -40,7 +42,7 @@ jobs:
           prerelease: true
 
   ubuntu:
-    needs: [release]
+    needs: [setup, release]
     runs-on: ubuntu-latest
     env:
       PACKAGENAME: ${{ needs.setup.outputs.PACKAGE_PREFIX }}_ubuntu_x64
@@ -64,26 +66,28 @@ jobs:
       run: |
         pyinstaller -F -w start.py --add-binary waifu2x.so:.
         mv dist bika
-        cp -r data models resources bika/
+        cp -r data models resources translations bika/
         rm bika/resources/*.py -rf
+        rm bika/translations/*.ts -rf
         tar -zcvf ${{ env.PACKAGENAME }}.tar.gz bika/
     - name: Upload
       uses: actions/upload-artifact@v2
       with:
         name: ${{ env.PACKAGENAME }}
         path: ${{ env.PACKAGENAME }}.tar.gz
-    - uses: actions/upload-release-asset@v1
+    - name: upload-ubuntu
+      uses: actions/upload-release-asset@v1
       if: startsWith(github.ref, 'refs/tags/v')
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ needs.main.outputs.upload_url }}
+        upload_url: ${{ needs.release.outputs.Up_Url }}
         asset_path: ${{ env.PACKAGENAME }}.tar.gz
         asset_name: ${{ env.PACKAGENAME }}.tar.gz
         asset_content_type: application/gzip
 
   macos:
-    needs: [release]
+    needs: [setup, release]
     runs-on: macos-latest
     env:
       PACKAGENAME: ${{ needs.setup.outputs.PACKAGE_PREFIX }}_macos_x64
@@ -109,7 +113,7 @@ jobs:
         pyinstaller --clean --log-level TRACE --onedir --name PicACG \
             --add-binary waifu2x.so:. --hidden-import PySide2 --hidden-import requests \
             --hidden-import urllib3 --hidden-import websocket-client --hidden-import pillow \
-            --hidden-import conf --hidden-import resources --hidden-import src \
+            --hidden-import conf --hidden-import resources --hidden-import translations --hidden-import src \
             --hidden-import src.index --hidden-import src.qt --hidden-import src.qt.chat \
             --hidden-import src.qt.com --hidden-import src.qt.download \
             --hidden-import src.qt.main --hidden-import src.qt.menu \
@@ -121,8 +125,9 @@ jobs:
         rm -rf dist/PicACG
         cp Icon.icns dist/
         ln -s /Applications/   dist/Applications
-        cp -avf data models resources dist/PicACG.app/Contents/MacOS
+        cp -avf data models resources translations dist/PicACG.app/Contents/MacOS
         rm -rf dist/PicACG.app/Contents/MacOS/resources/*.py
+        rm -rf dist/PicACG.app/Contents/MacOS/translations/*.ts
         create-dmg --volname "PicACG" --volicon "Icon.icns" --icon "Icon.icns" 200 190 \
             --hide-extension "Icon.icns" ${{ env.PACKAGENAME }}.dmg dist/
         zip -9 bika.zip ${{ env.PACKAGENAME }}.dmg
@@ -131,17 +136,18 @@ jobs:
       with:
         name: ${{ env.PACKAGENAME }}
         path: bika.zip
-    - uses: actions/upload-release-asset@v1
+    - name: upload-macos
+      uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ needs.main.outputs.upload_url }}
+        upload_url: ${{ needs.release.outputs.Up_Url }}
         asset_path: ${{ env.PACKAGENAME }}.dmg
         asset_name: ${{ env.PACKAGENAME }}.dmg
         asset_content_type: application/gzip
 
   windows:
-    needs: [release]
+    needs: [setup, release]
     runs-on: windows-latest
     env:
       PACKAGENAME: ${{ needs.setup.outputs.PACKAGE_PREFIX }}_windows_x64
@@ -170,22 +176,25 @@ jobs:
         Copy-Item -Verbose -Recurse -Path data -Destination bika/
         Copy-Item -Verbose -Recurse -Path models -Destination bika/
         Copy-Item -Verbose -Recurse -Path resources -Destination bika/
+        Copy-Item -Verbose -Recurse -Path translations -Destination bika/
         Remove-Item bika/resources/*.py -r -fo
+        Remove-Item bika/translations/*.ts -r -fo
         cp LICENSE bika\
         cp README.md bika\
-        mkdir ${{ env.PACKAGENAME }}
-        mv bika ${{ env.PACKAGENAME }}
+        # mkdir ${{ env.PACKAGENAME }}
+        # mv bika ${{ env.PACKAGENAME }}
         7z a -r "$($Env:PACKAGENAME + '.zip')" "bika"
     - name: Upload
       uses: actions/upload-artifact@v2
       with:
         name: ${{ env.PACKAGENAME }}
-        path: ${{ env.PACKAGENAME }}
-    - uses: actions/upload-release-asset@v1
+        path: bika
+    - name: upload-macos
+      uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ needs.main.outputs.upload_url }}
+        upload_url: ${{ needs.release.outputs.Up_Url }}
         asset_path: ${{ env.PACKAGENAME }}.zip
         asset_name: ${{ env.PACKAGENAME }}.zip
         asset_content_type: application/zip

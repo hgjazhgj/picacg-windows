@@ -17,7 +17,7 @@ class Ui_AboutForm(object):
     def setupUi(self, AboutForm):
         if not AboutForm.objectName():
             AboutForm.setObjectName(u"AboutForm")
-        AboutForm.resize(379, 284)
+        AboutForm.resize(477, 284)
         self.gridLayout = QGridLayout(AboutForm)
         self.gridLayout.setObjectName(u"gridLayout")
         self.line_4 = QFrame(AboutForm)
@@ -145,14 +145,14 @@ class Ui_AboutForm(object):
     # setupUi
 
     def retranslateUi(self, AboutForm):
-        AboutForm.setWindowTitle(QCoreApplication.translate("AboutForm", u"Form", None))
+        AboutForm.setWindowTitle(QCoreApplication.translate("AboutForm", u"\u5173\u4e8e", None))
         self.label_6.setText(QCoreApplication.translate("AboutForm", u"1.0.2", None))
         self.label_8.setText(QCoreApplication.translate("AboutForm", u"<a href=\"https://github.com/tonquer/waifu2x-ncnn-vulkan-python\"> waifu2x-ncnn-vulkan-python</a>", None))
         self.label_2.setText(QCoreApplication.translate("AboutForm", u"\u672c\u8f6f\u4ef6\u4e0d\u5f97\u7528\u4e8e\u5546\u4e1a\u7528\u9014\uff0c\u4ec5\u505a\u5b66\u4e60\u4ea4\u6d41", None))
         self.label_10.setText(QCoreApplication.translate("AboutForm", u"<a href=\"https://github.com/tonquer/ehentai-read\"> https://github.com/tonquer/ehentai-read</a>", None))
         self.label_5.setText(QCoreApplication.translate("AboutForm", u"waifu2x\u7248\u672c\uff1a", None))
         self.label_7.setText(QCoreApplication.translate("AboutForm", u"waifu2x\u5730\u5740", None))
-        self.label.setText(QCoreApplication.translate("AboutForm", u"\u54d4\u5494\u6f2b\u753bv1.0.5", None))
+        self.label.setText("")
         self.label_4.setText(QCoreApplication.translate("AboutForm", u"\u9879\u76ee\u5f00\u6e90\u5730\u5740\uff1a", None))
         self.label_9.setText(QCoreApplication.translate("AboutForm", u"E-hentai", None))
         self.label_3.setText(QCoreApplication.translate("AboutForm", u"<a href=\"https://github.com/tonquer/picacg-windows\"> https://github.com/tonquer/picacg-windows</a>", None))

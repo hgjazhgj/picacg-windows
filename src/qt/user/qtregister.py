@@ -2,10 +2,12 @@ from PySide2 import QtWidgets
 from PySide2.QtCore import QRegExp, Qt
 from PySide2.QtGui import QRegExpValidator
 
-from src.qt.com.qtbubblelabel import QtBubbleLabel
+from src.qt.com.qtmsg import QtMsgLabel
 from src.qt.com.qtloading import QtLoading
+from src.qt.qtmain import QtOwner
 from src.server import req, QtTask
 from src.util.status import Status
+from src.util import ToolUtil
 from ui.register import Ui_Register
 
 
@@ -14,8 +16,8 @@ class QtRegister(QtWidgets.QWidget, Ui_Register):
         super(self.__class__, self).__init__()
         Ui_Register.__init__(self)
         self.setupUi(self)
+        ToolUtil.SetIcon(self)
         self.setWindowModality(Qt.ApplicationModal)
-        self.setWindowTitle("注册")
         self.loadingForm = QtLoading(self)
         reg = QRegExp("^[A-Z0-9a-z\\.\\_]{1,16}$")
         validator = QRegExpValidator(reg, self.userEdit)
@@ -24,11 +26,11 @@ class QtRegister(QtWidgets.QWidget, Ui_Register):
     def Register(self):
         if not self.buttonGroup.checkedButton():
             # QtWidgets.QMessageBox.information(self, '错误', "不能为空", QtWidgets.QMessageBox.Yes)
-            QtBubbleLabel.ShowErrorEx(self, "不能为空")
+            QtMsgLabel.ShowErrorEx(self, self.tr("不能为空"))
             return
         if len(self.passwdEdit.text()) < 8:
             # QtWidgets.QMessageBox.information(self, '错误', "密码太短", QtWidgets.QMessageBox.Yes)
-            QtBubbleLabel.ShowErrorEx(self, "密码太短")
+            QtMsgLabel.ShowErrorEx(self, self.tr("密码太短"))
             return
         data = {
             "email": self.userEdit.text(),
@@ -46,7 +48,7 @@ class QtRegister(QtWidgets.QWidget, Ui_Register):
         for v in data.values():
             if not v:
                 # QtWidgets.QMessageBox.information(self, '错误', "不能为空", QtWidgets.QMessageBox.Yes)
-                QtBubbleLabel.ShowErrorEx(self, "不能为空")
+                QtMsgLabel.ShowErrorEx(self, self.tr("不能为空"))
                 return
 
         self.loadingForm.show()
@@ -58,9 +60,9 @@ class QtRegister(QtWidgets.QWidget, Ui_Register):
         if msg == Status.Ok:
             # self.close()
             # QtWidgets.QMessageBox.information(self, '注册成功', "注册成功", QtWidgets.QMessageBox.Yes)
-            QtBubbleLabel.ShowMsgEx(self, "注册成功")
+            QtMsgLabel.ShowMsgEx(self, self.tr("注册成功"))
             self.close()
         else:
             # QtWidgets.QMessageBox.information(self, '注册失败', msg, QtWidgets.QMessageBox.Yes)
-            QtBubbleLabel.ShowErrorEx(self, msg)
+            QtMsgLabel.ShowErrorEx(self, QtOwner().owner.GetStatusStr(msg))
 

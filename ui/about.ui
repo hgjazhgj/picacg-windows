@@ -6,12 +6,12 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>379</width>
+    <width>477</width>
     <height>284</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Form</string>
+   <string>关于</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
    <item row="8" column="0">
@@ -117,7 +117,7 @@
      <item row="1" column="0">
       <widget class="QLabel" name="label">
        <property name="text">
-        <string>哔咔漫画v1.0.5</string>
+        <string/>
        </property>
       </widget>
      </item>

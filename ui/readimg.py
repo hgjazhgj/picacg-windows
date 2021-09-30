@@ -17,7 +17,7 @@ class Ui_ReadImg(object):
     def setupUi(self, ReadImg):
         if not ReadImg.objectName():
             ReadImg.setObjectName(u"ReadImg")
-        ReadImg.resize(299, 705)
+        ReadImg.resize(299, 730)
         ReadImg.setAutoFillBackground(False)
         ReadImg.setStyleSheet(u"")
         self.gridLayout_2 = QGridLayout(ReadImg)
@@ -241,26 +241,36 @@ class Ui_ReadImg(object):
 
         self.verticalLayout.addWidget(self.line_2)
 
-        self.horizontalLayout_4 = QHBoxLayout()
-        self.horizontalLayout_4.setObjectName(u"horizontalLayout_4")
-        self.radioButton = QRadioButton(ReadImg)
-        self.buttonGroup = QButtonGroup(ReadImg)
-        self.buttonGroup.setObjectName(u"buttonGroup")
-        self.buttonGroup.addButton(self.radioButton)
-        self.radioButton.setObjectName(u"radioButton")
-        self.radioButton.setChecked(False)
+        self.label_6 = QLabel(ReadImg)
+        self.label_6.setObjectName(u"label_6")
+        self.label_6.setStyleSheet(u"color: #ee2a24")
+        self.label_6.setAlignment(Qt.AlignCenter)
 
-        self.horizontalLayout_4.addWidget(self.radioButton)
+        self.verticalLayout.addWidget(self.label_6)
 
-        self.radioButton_2 = QRadioButton(ReadImg)
-        self.buttonGroup.addButton(self.radioButton_2)
-        self.radioButton_2.setObjectName(u"radioButton_2")
-        self.radioButton_2.setChecked(True)
+        self.horizontalLayout_11 = QHBoxLayout()
+        self.horizontalLayout_11.setObjectName(u"horizontalLayout_11")
+        self.label_5 = QLabel(ReadImg)
+        self.label_5.setObjectName(u"label_5")
+        self.label_5.setMaximumSize(QSize(90, 16777215))
+        self.label_5.setStyleSheet(u"")
+        self.label_5.setAlignment(Qt.AlignLeading|Qt.AlignLeft|Qt.AlignVCenter)
 
-        self.horizontalLayout_4.addWidget(self.radioButton_2)
+        self.horizontalLayout_11.addWidget(self.label_5)
+
+        self.comboBox = QComboBox(ReadImg)
+        self.comboBox.addItem("")
+        self.comboBox.addItem("")
+        self.comboBox.addItem("")
+        self.comboBox.addItem("")
+        self.comboBox.addItem("")
+        self.comboBox.addItem("")
+        self.comboBox.setObjectName(u"comboBox")
+
+        self.horizontalLayout_11.addWidget(self.comboBox)
 
 
-        self.verticalLayout.addLayout(self.horizontalLayout_4)
+        self.verticalLayout.addLayout(self.horizontalLayout_11)
 
         self.horizontalLayout_10 = QHBoxLayout()
         self.horizontalLayout_10.setObjectName(u"horizontalLayout_10")
@@ -282,6 +292,13 @@ class Ui_ReadImg(object):
 
 
         self.verticalLayout.addLayout(self.horizontalLayout_10)
+
+        self.line_3 = QFrame(ReadImg)
+        self.line_3.setObjectName(u"line_3")
+        self.line_3.setFrameShape(QFrame.HLine)
+        self.line_3.setFrameShadow(QFrame.Sunken)
+
+        self.verticalLayout.addWidget(self.line_3)
 
         self.copyButton = QPushButton(ReadImg)
         self.copyButton.setObjectName(u"copyButton")
@@ -376,8 +393,6 @@ class Ui_ReadImg(object):
         self.retranslateUi(ReadImg)
         self.pushButton_5.clicked.connect(ReadImg.OpenNextEps)
         self.lastPage.clicked.connect(ReadImg.LastPage)
-        self.radioButton.clicked.connect(ReadImg.SwitchPicture)
-        self.radioButton_2.clicked.connect(ReadImg.SwitchPicture)
         self.copyButton.clicked.connect(ReadImg.CopyPicture)
         self.nextPage.clicked.connect(ReadImg.NextPage)
         self.pushButton_4.clicked.connect(ReadImg.OpenLastEps)
@@ -388,6 +403,7 @@ class Ui_ReadImg(object):
         self.waifu2xSave.clicked.connect(ReadImg.Waifu2xSave)
         self.waifu2xCancle.clicked.connect(ReadImg.Waifu2xCancle)
         self.zoomSlider.valueChanged.connect(ReadImg.ScalePicture)
+        self.comboBox.currentIndexChanged.connect(ReadImg.ChangeReadMode)
 
         QMetaObject.connectSlotsByName(ReadImg)
     # setupUi
@@ -430,8 +446,15 @@ class Ui_ReadImg(object):
         self.waifu2xStatus.setText("")
         self.waifu2xSave.setText(QCoreApplication.translate("ReadImg", u"\u4fee\u6539", None))
         self.waifu2xCancle.setText(QCoreApplication.translate("ReadImg", u"\u4fdd\u5b58", None))
-        self.radioButton.setText(QCoreApplication.translate("ReadImg", u"\u5de6\u53f3\u7ffb\u9875", None))
-        self.radioButton_2.setText(QCoreApplication.translate("ReadImg", u"\u4e0a\u4e0b\u7ffb\u9875", None))
+        self.label_6.setText(QCoreApplication.translate("ReadImg", u"\u7ffb\u9875\u8bbe\u7f6e", None))
+        self.label_5.setText(QCoreApplication.translate("ReadImg", u"\u7ffb\u9875\u6a21\u5f0f\uff1a", None))
+        self.comboBox.setItemText(0, QCoreApplication.translate("ReadImg", u"\u4e0a\u4e0b\u6eda\u52a8", None))
+        self.comboBox.setItemText(1, QCoreApplication.translate("ReadImg", u"\u9ed8\u8ba4", None))
+        self.comboBox.setItemText(2, QCoreApplication.translate("ReadImg", u"\u5de6\u53f3\u53cc\u9875", None))
+        self.comboBox.setItemText(3, QCoreApplication.translate("ReadImg", u"\u53f3\u5de6\u53cc\u9875", None))
+        self.comboBox.setItemText(4, QCoreApplication.translate("ReadImg", u"\u5de6\u53f3\u6eda\u52a8", None))
+        self.comboBox.setItemText(5, QCoreApplication.translate("ReadImg", u"\u53f3\u5de6\u6eda\u52a8", None))
+
         self.zoomLabel.setText(QCoreApplication.translate("ReadImg", u"\u7f29\u653e\uff08120%\uff09", None))
         self.copyButton.setText(QCoreApplication.translate("ReadImg", u"\u6253\u5f00\u56fe\u7247\u5de5\u5177", None))
         self.pushButton_2.setText(QCoreApplication.translate("ReadImg", u"\u9690\u85cf", None))

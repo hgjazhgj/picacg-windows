@@ -12,7 +12,7 @@ from PySide2.QtWidgets import QListWidgetItem, QMenu, QAction
 from conf import config
 from src.qt.chat.chat_ws import ChatWebSocket
 from src.qt.chat.qtchatroommsg import QtChatRoomMsg
-from src.qt.com.qtbubblelabel import QtBubbleLabel
+from src.qt.com.qtmsg import QtMsgLabel
 from src.qt.com.qticon import IconList
 from src.qt.com.qtloading import QtLoading
 from src.qt.util.qttask import QtTaskBase
@@ -39,7 +39,6 @@ class QtChatRoom(QtWidgets.QWidget, Ui_ChatRoom, QtTaskBase):
         self.setupUi(self)
         self.scrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.scrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setWindowTitle("聊天室")
         self.url = ""
         self.socket = ChatWebSocket(self)
         self.websocket.connect(self.HandlerInfo)
@@ -118,7 +117,6 @@ class QtChatRoom(QtWidgets.QWidget, Ui_ChatRoom, QtTaskBase):
 
     def keyPressEvent(self, event) -> None:
         if event.key() == Qt.Key_Return:
-            print(event.modifiers() == Qt.ControlModifier)
             if (config.ChatSendAction == 2 and event.modifiers() != Qt.ControlModifier) or (
                     config.ChatSendAction == 1 and (event.modifiers() == Qt.ControlModifier)):
                 return
@@ -316,7 +314,7 @@ class QtChatRoom(QtWidgets.QWidget, Ui_ChatRoom, QtTaskBase):
             self.JoinRoom()
         elif taskType == self.ErrorMsg:
             self.loadingForm.close()
-            QtBubbleLabel().ShowErrorEx(self, "出错了,"+data)
+            QtMsgLabel().ShowErrorEx(self, "出错了,"+data)
             pass
         elif taskType == self.SendImg:
             self.picButton.setEnabled(True)
@@ -368,7 +366,7 @@ class QtChatRoom(QtWidgets.QWidget, Ui_ChatRoom, QtTaskBase):
 
     def OpenPicture(self):
         try:
-            data, name, picFormat = QtBubbleLabel.OpenPicture(self, self.cachePath)
+            data, name, picFormat = QtMsgLabel.OpenPicture(self, self.cachePath)
             if data:
                 self.cachePath = os.path.dirname(name)
                 imgData = base64.b64encode(data).decode("utf-8")

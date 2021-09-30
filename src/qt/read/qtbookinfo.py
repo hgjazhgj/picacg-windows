@@ -2,20 +2,21 @@ import json
 
 from PySide2 import QtWidgets, QtCore, QtGui
 from PySide2.QtCore import Qt, QSize, QEvent
-from PySide2.QtGui import QColor, QFont, QPixmap, QIcon
+from PySide2.QtGui import QColor, QFont, QPixmap, QIcon, QGuiApplication
 from PySide2.QtWidgets import QListWidgetItem, QLabel, QApplication, QHBoxLayout, QLineEdit, QPushButton, \
-    QVBoxLayout, QDesktopWidget, QScroller, QAbstractItemView
+    QVBoxLayout, QScroller, QAbstractItemView
 
 from conf import config
 from qss.qss import QssDataMgr
 from resources.resources import DataMgr
 from src.index.book import BookMgr
-from src.qt.com.qtbubblelabel import QtBubbleLabel
+from src.qt.com.qtmsg import QtMsgLabel
 from src.qt.com.qtimg import QtImgMgr
 from src.qt.com.qtloading import QtLoading
 from src.qt.qtmain import QtOwner
 from src.qt.util.qttask import QtTaskBase
 from src.server import req, Log, ToolUtil
+from src.server.sql_server import SqlServer
 from src.util.status import Status
 from ui.bookinfo import Ui_BookInfo
 from ui.qtlistwidget import QtBookList
@@ -27,7 +28,7 @@ class QtBookInfo(QtWidgets.QWidget, Ui_BookInfo, QtTaskBase):
         Ui_BookInfo.__init__(self)
         QtTaskBase.__init__(self)
         self.setupUi(self)
-        self.commentWidget.InitReq(req.GetComments, req.SendComment, req.CommentsLikeReq)
+        self.commentWidget.InitReq(req.GetComments, req.SendComment, req.CommentsLikeReq, req.CommentsReportReq)
         self.loadingForm = QtLoading(self)
         self.bookId = ""
         self.url = ""
@@ -38,17 +39,16 @@ class QtBookInfo(QtWidgets.QWidget, Ui_BookInfo, QtTaskBase):
         self.pictureData = None
         self.isFavorite = False
         self.isLike = False
-        self.tabWidget.setCurrentIndex(0)
 
-        self.msgForm = QtBubbleLabel(self)
+        self.msgForm = QtMsgLabel(self)
         self.picture.installEventFilter(self)
         self.title.setWordWrap(True)
         self.title.setTextInteractionFlags(Qt.TextBrowserInteraction)
-        self.autorList.itemClicked.connect(self.ClickTagsItem)
+        self.autorList.itemClicked.connect(self.ClickAutorItem)
         self.idLabel.setTextInteractionFlags(Qt.TextBrowserInteraction)
         self.description.setTextInteractionFlags(Qt.TextBrowserInteraction)
-        self.description.setWordWrap(True)
-        self.description.setAlignment(Qt.AlignTop)
+        # self.description.setWordWrap(True)
+        # self.description.setAlignment(Qt.AlignTop)
         p = QPixmap()
         p.loadFromData(DataMgr.GetData("ic_get_app_black_36dp"))
         self.downloadButton.setIcon(QIcon(p))
@@ -76,16 +76,23 @@ class QtBookInfo(QtWidgets.QWidget, Ui_BookInfo, QtTaskBase):
         self.epsListWidget.clicked.connect(self.OpenReadImg)
 
         ToolUtil.SetIcon(self)
-        desktop = QDesktopWidget()
-        self.resize(desktop.width()//4*1, desktop.height()//4*3)
-        self.move(desktop.width()//8*3, desktop.height()//8*1)
+        desktop = QGuiApplication.primaryScreen().geometry()
+        self.resize(desktop.width()//4*3, desktop.height()//4*3)
+        self.move(desktop.width()//8*1, desktop.height()//8*1)
 
         QScroller.grabGesture(self.epsListWidget, QScroller.LeftMouseButtonGesture)
         self.epsListWidget.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.epsListWidget.verticalScrollBar().setStyleSheet(QssDataMgr().GetData('qt_list_scrollbar'))
         self.epsListWidget.verticalScrollBar().setSingleStep(30)
-
-    def UpdateFavorityIcon(self):
+        self.user_name.setCursor(Qt.PointingHandCursor)
+        self.user_icon.setCursor(Qt.PointingHandCursor)
+        self.user_name.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        self.user_icon.radius = 50
+        self.userIconData = None
+        self.user_name.installEventFilter(self)
+        self.user_icon.installEventFilter(self)
+    
+    def UpdateFavoriteIcon(self):
         p = QPixmap()
         if self.isFavorite:
             p.loadFromData(DataMgr.GetData("icon_like"))
@@ -110,12 +117,6 @@ class QtBookInfo(QtWidgets.QWidget, Ui_BookInfo, QtTaskBase):
         else:
             a0.accept()
 
-    def CopyTitle(self):
-        clipboard = QApplication.clipboard()
-        clipboard.setText(self.title.text())
-        self.msgForm.ShowMsg("复制标题")
-        return
-
     def Clear(self):
         self.stackedWidget.setCurrentIndex(0)
         self.ClearTask()
@@ -129,7 +130,13 @@ class QtBookInfo(QtWidgets.QWidget, Ui_BookInfo, QtTaskBase):
         self.Clear()
         self.show()
         self.loadingForm.show()
-        self.AddHttpTask(req.GetComicsBookReq(bookId), self.OpenBookBack)
+        self.OpenLocalBack()
+
+    def OpenLocalBack(self):
+        self.AddSqlTask("book", self.bookId, SqlServer.TaskTypeCacheBook, callBack=self.SendLocalBack)
+
+    def SendLocalBack(self, books):
+        self.AddHttpTask(req.GetComicsBookReq(self.bookId), self.OpenBookBack)
 
     def OpenBookBack(self, msg):
         self.loadingForm.close()
@@ -137,8 +144,7 @@ class QtBookInfo(QtWidgets.QWidget, Ui_BookInfo, QtTaskBase):
         self.tagsList.clear()
         self.autorList.clear()
         info = BookMgr().books.get(self.bookId)
-        if msg == Status.Ok and info:
-            # self.autor.setText(info.author)
+        if info:
             self.autorList.AddItem(info.author)
             if hasattr(info, "chineseTeam"):
                 self.autorList.AddItem(info.chineseTeam)
@@ -155,47 +161,55 @@ class QtBookInfo(QtWidgets.QWidget, Ui_BookInfo, QtTaskBase):
             self.idLabel.setText(info.id)
 
             self.bookName = info.title
-            self.description.setText(info.description)
-            # self.isFinished.setText("完本" if info.finished else "未完本")
+            self.description.setPlainText(info.description)
 
             for name in info.categories:
                 self.categoriesList.AddItem(name)
-            # self.categories.setText(','.join(info.categories))
-            # self.tags.setText(','.join(info.tags))
             for name in info.tags:
                 self.tagsList.AddItem(name)
             self.starButton.setText(str(info.totalLikes))
             self.views.setText(str(info.totalViews))
-
-            # if info.isFavourite:
-            #     self.favorites.setEnabled(False)
-            # else:
-            #     self.favorites.setEnabled(True)
             self.isFavorite = info.isFavourite
             self.isLike = info.isLiked
-            self.UpdateFavorityIcon()
+            self.UpdateFavoriteIcon()
             self.UpdateLikeIcon()
-            self.picture.setText("图片加载中...")
-            self.tabWidget.setTabText(1, "评论({})".format(str(info.commentsCount)))
+            self.picture.setText(self.tr("图片加载中..."))
             fileServer = info.thumb.get("fileServer")
             path = info.thumb.get("path")
             name = info.thumb.get("originalName")
             self.url = fileServer
             self.path = path
             dayStr = ToolUtil.GetUpdateStr(info.updated_at)
-            self.updateTick.setText(str(dayStr) + "更新")
+            self.updateTick.setText(str(dayStr) + self.tr("更新"))
             if config.IsLoadingPicture:
-
                 self.AddDownloadTask(fileServer, path, completeCallBack=self.UpdatePicture)
             self.commentWidget.bookId = self.bookId
-            self.commentWidget.LoadComment()
+
             self.AddHttpTask(req.GetComicsBookEpsReq(self.bookId), self.GetEpsBack)
             self.startRead.setEnabled(False)
+            if hasattr(info, "_creator"):
+                creator = info._creator
+                self.user_name.setText(creator.get("name"))
+                url2 = creator.get("avatar", {}).get("fileServer")
+                path2 = creator.get("avatar", {}).get("path")
+                if url2:
+                    self.AddDownloadTask(url2, path2, None, self.LoadingPictureComplete)
+            self.commentWidget.LoadComment()
         else:
             # QtWidgets.QMessageBox.information(self, '加载失败', msg, QtWidgets.QMessageBox.Yes)
-            self.msgForm.ShowError(msg)
+            self.msgForm.ShowError(QtOwner().owner.GetStatusStr(msg))
+
             self.hide()
+
+        if msg == Status.UnderReviewBook:
+            self.msgForm.ShowError(QtOwner().owner.GetStatusStr(msg))
+
         return
+
+    def LoadingPictureComplete(self, data, status):
+        if status == Status.Ok:
+            self.userIconData = data
+            self.user_icon.SetPicture(data)
 
     def UpdatePicture(self, data, status):
         if status == Status.Ok:
@@ -207,7 +221,7 @@ class QtBookInfo(QtWidgets.QWidget, Ui_BookInfo, QtTaskBase):
             # self.picture.setScaledContents(True)
             self.update()
         else:
-            self.picture.setText("图片加载失败")
+            self.picture.setText(self.tr("图片加载失败"))
         return
 
     def GetEpsBack(self, st):
@@ -216,6 +230,8 @@ class QtBookInfo(QtWidgets.QWidget, Ui_BookInfo, QtTaskBase):
             self.lastEpsId = -1
             self.LoadHistory()
             return
+        else:
+            self.msgForm.ShowError(self.tr("章节加载失败,") + "{}".format(QtOwner().owner.GetStatusStr(st)))
         return
 
     def UpdateEpsData(self):
@@ -243,15 +259,14 @@ class QtBookInfo(QtWidgets.QWidget, Ui_BookInfo, QtTaskBase):
             item.setSizeHint(label.sizeHint() + QSize(20, 20))
             item.setToolTip(epsInfo.title)
             self.epsListWidget.setItemWidget(item, label)
-        self.tabWidget.setTabText(0, "章节({})".format(str(len(info.eps))))
         return
 
     def AddDownload(self):
         QtOwner().owner.epsInfoForm.OpenEpsInfo(self.bookId)
         # if self.owner().downloadForm.AddDownload(self.bookId):
-        #     QtBubbleLabel.ShowMsgEx(self, "添加下载成功")
+        #     QtMsgLabel.ShowMsgEx(self, "添加下载成功")
         # else:
-        #     QtBubbleLabel.ShowMsgEx(self, "已在下载列表")
+        #     QtMsgLabel.ShowMsgEx(self, "已在下载列表")
         # self.download.setEnabled(False)
 
     def AddBookLike(self):
@@ -263,12 +278,12 @@ class QtBookInfo(QtWidgets.QWidget, Ui_BookInfo, QtTaskBase):
             self.starButton.setText(str(int(self.starButton.text()) - 1))
         self.UpdateLikeIcon()
 
-    def AddFavority(self):
+    def AddFavorite(self):
         self.AddHttpTask(req.FavoritesAdd(self.bookId))
         self.isFavorite = not self.isFavorite
-        self.UpdateFavorityIcon()
+        self.UpdateFavoriteIcon()
         if self.isFavorite:
-            QtBubbleLabel.ShowMsgEx(self, "添加收藏成功")
+            QtMsgLabel.ShowMsgEx(self, self.tr("添加收藏成功"))
             QtOwner().owner.favoriteForm.AddFavorites(self.bookId)
         else:
             QtOwner().owner.favoriteForm.DelAndFavoritesBack("", self.bookId)
@@ -299,11 +314,11 @@ class QtBookInfo(QtWidgets.QWidget, Ui_BookInfo, QtTaskBase):
     def LoadHistory(self):
         info = QtOwner().owner.historyForm.GetHistory(self.bookId)
         if not info:
-            self.startRead.setText("观看第{}章".format(str(1)))
+            self.startRead.setText(self.tr("观看第1章"))
             return
         if self.lastEpsId == info.epsId:
             self.lastIndex = info.picIndex
-            self.startRead.setText("上次看到第{}章{}页".format(str(self.lastEpsId + 1), str(info.picIndex+1)))
+            self.startRead.setText(self.tr("上次看到第") + str(self.lastEpsId + 1) + self.tr("章") + str(info.picIndex+1) + self.tr("页"))
             return
 
         if self.lastEpsId >= 0:
@@ -322,25 +337,34 @@ class QtBookInfo(QtWidgets.QWidget, Ui_BookInfo, QtTaskBase):
         self.epsListWidget.update()
         self.lastEpsId = info.epsId
         self.lastIndex = info.picIndex
-        self.startRead.setText("上次看到第{}章{}页".format(str(self.lastEpsId+1), str(info.picIndex+1)))
+        self.startRead.setText(self.tr("上次看到第") + str(self.lastEpsId + 1) + self.tr("章") + str(info.picIndex+1) + self.tr("页"))
 
     def ClickCategoriesItem(self, item):
         text = item.text()
-        QtOwner().owner.userForm.toolButton1.click()
-        QtOwner().owner.searchForm.searchEdit.setText("")
-        QtOwner().owner.searchForm.OpenSearchCategories(text)
+        QtOwner().owner.searchForm.SearchCategories(text)
+        return
+
+    def ClickAutorItem(self, item):
+        text = item.text()
+        QtOwner().owner.searchForm.SearchAutor(text)
         return
 
     def ClickTagsItem(self, item):
         text = item.text()
-        QtOwner().owner.searchForm.Search2(text)
+        QtOwner().owner.searchForm.SearchTags(text)
         return
 
     def eventFilter(self, obj, event):
         if event.type() == QEvent.MouseButtonPress:
             if event.button() == Qt.LeftButton:
-                if self.pictureData:
-                    QtImgMgr().ShowImg(self.pictureData)
+                if obj == self.picture:
+                    if self.pictureData:
+                        QtImgMgr().ShowImg(self.pictureData)
+                elif obj == self.user_icon:
+                    if self.userIconData:
+                        QtImgMgr().ShowImg(self.userIconData)
+                elif obj == self.user_name:
+                    QtOwner().owner.searchForm.SearchCreator(self.user_name.text())
                 return True
             else:
                 return False

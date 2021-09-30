@@ -25,12 +25,17 @@ class QtDownload(QtWidgets.QWidget, Ui_download):
         self.convertList = []
         self.convertingList = []
 
+        # if config.Language == "English":
+        #     HorizontalHeaderLabels = ["id", "Title", "Download Status", "Download Progress", "Download Chapters", "Download Speed", "Convert Progress", "Covert Chapters", "Covert Time", "Convert Status"]
+        # else:
+        #     HorizontalHeaderLabels = ["id", "标题", "下载状态", "下载进度", "下载章节", "下载速度", "转换进度", "转换章节", "转换耗时", "转换状态"]
+
         self.tableWidget.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.tableWidget.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tableWidget.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tableWidget.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tableWidget.setColumnCount(10)
-        self.tableWidget.setHorizontalHeaderLabels(["id", "标题", "下载状态", "下载进度", "下载章节", "下载速度", "转换进度", "转换章节", "转换耗时", "转换状态"])
+        # self.tableWidget.setHorizontalHeaderLabels(HorizontalHeaderLabels)
         self.timer = QTimer(self.tableWidget)
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self.UpdateTable)
@@ -40,33 +45,6 @@ class QtDownload(QtWidgets.QWidget, Ui_download):
         # self.InitSetting()
 
         self.tableWidget.customContextMenuRequested.connect(self.SelectMenu)
-
-        self.openDirAction = QAction("打开目录", self)
-        self.openDirAction.triggered.connect(self.ClickOpenFilePath)
-
-        self.pauseAction = QAction("暂停", self)
-        self.pauseAction.triggered.connect(self.ClickPause)
-
-        self.removeAction = QAction("刪除记录", self)
-        self.removeAction.triggered.connect(self.DelRecording)
-
-        self.removeFileAction = QAction("刪除记录和文件", self)
-        self.removeFileAction.triggered.connect(self.DelRecordingAndFile)
-
-        self.openDirAction = QAction("打开目录", self)
-        self.openDirAction.triggered.connect(self.ClickOpenFilePath)
-
-        self.selectEpsAction = QAction("选择下载章节", self)
-        self.selectEpsAction.triggered.connect(self.ClickDownloadEps)
-
-        self.startAction = QAction("开始", self)
-        self.startAction.triggered.connect(self.ClickStart)
-
-        self.startConvertAction = QAction("开始转换", self)
-        self.startConvertAction.triggered.connect(self.ClickConvertStart)
-
-        self.pauseConvertAction = QAction("暂停转换", self)
-        self.pauseConvertAction.triggered.connect(self.ClickConvertPause)
 
         self.tableWidget.doubleClicked.connect(self.OpenBookInfo)
 
@@ -209,11 +187,37 @@ class QtDownload(QtWidgets.QWidget, Ui_download):
                 break
         pass
 
+    def GetStatusText(self, status):
+        if status == DownloadInfo.Success:
+            status = self.tr("下载完成")
+        elif status == DownloadInfo.Reading:
+            status = self.tr("获取信息")
+        elif status == DownloadInfo.ReadingEps:
+            status = self.tr("获取章节")
+        elif status == DownloadInfo.ReadingPicture:
+            status = self.tr("获取下载地址")
+        elif status == DownloadInfo.Downloading:
+            status = self.tr("正在下载")
+        elif status == DownloadInfo.Waiting:
+            status = self.tr("等待中")
+        elif status == DownloadInfo.Pause:
+            status = self.tr("暂停")
+        elif status == DownloadInfo.Error:
+            status = self.tr("出错了")
+        elif status == DownloadInfo.NotFound:
+            status = self.tr("原始文件不存在")
+        elif status == DownloadInfo.Converting:
+            status = self.tr("转换中")
+        elif status == DownloadInfo.ConvertSuccess:
+            status = self.tr("转换成功")
+        return status
+
     def UpdateTableItem(self, info):
         assert isinstance(info, DownloadInfo)
+
         self.tableWidget.setItem(info.tableRow, 0, QTableWidgetItem(info.bookId))
         self.tableWidget.setItem(info.tableRow, 1, QTableWidgetItem(info.title))
-        self.tableWidget.setItem(info.tableRow, 2, QTableWidgetItem(info.status))
+        self.tableWidget.setItem(info.tableRow, 2, QTableWidgetItem(self.GetStatusText(info.status)))
         self.tableWidget.setItem(info.tableRow, 3,
                                  QTableWidgetItem("{}/{}".format(str(info.curDownloadPic), str(info.maxDownloadPic))))
         self.tableWidget.setItem(info.tableRow, 4,
@@ -222,7 +226,7 @@ class QtDownload(QtWidgets.QWidget, Ui_download):
         self.tableWidget.setItem(info.tableRow, 6, QTableWidgetItem("{}/{}".format(str(info.curConvertCnt), str(info.convertCnt))))
         self.tableWidget.setItem(info.tableRow, 7, QTableWidgetItem("{}/{}".format(str(info.curConvertEps), str(info.convertEpsCnt))))
         self.tableWidget.setItem(info.tableRow, 8, QTableWidgetItem("{}".format(str(info.convertTick))))
-        self.tableWidget.setItem(info.tableRow, 9, QTableWidgetItem(info.convertStatus))
+        self.tableWidget.setItem(info.tableRow, 9, QTableWidgetItem(self.GetStatusText(info.convertStatus)))
         self.tableWidget.update()
         return
 
@@ -256,6 +260,33 @@ class QtDownload(QtWidgets.QWidget, Ui_download):
     # 右键菜单
     def SelectMenu(self, pos):
         index = self.tableWidget.indexAt(pos)
+        openDirAction = QAction(self.tr("打开目录"), self)
+        openDirAction.triggered.connect(self.ClickOpenFilePath)
+
+        pauseAction = QAction(self.tr("暂停"), self)
+        pauseAction.triggered.connect(self.ClickPause)
+
+        removeAction = QAction(self.tr("刪除记录"), self)
+        removeAction.triggered.connect(self.DelRecording)
+
+        removeFileAction = QAction(self.tr("刪除记录和文件"), self)
+        removeFileAction.triggered.connect(self.DelRecordingAndFile)
+
+        # self.openDirAction = QAction("打开目录", self)
+        # self.openDirAction.triggered.connect(self.ClickOpenFilePath)
+
+        selectEpsAction = QAction(self.tr("选择下载章节"), self)
+        selectEpsAction.triggered.connect(self.ClickDownloadEps)
+
+        startAction = QAction(self.tr("开始"), self)
+        startAction.triggered.connect(self.ClickStart)
+
+        startConvertAction = QAction(self.tr("开始转换"), self)
+        startConvertAction.triggered.connect(self.ClickConvertStart)
+
+        pauseConvertAction = QAction(self.tr("暂停转换"), self)
+        pauseConvertAction.triggered.connect(self.ClickConvertPause)
+
         if index.isValid():
             selected = self.tableWidget.selectedIndexes()
             selectRows = set()
@@ -274,24 +305,24 @@ class QtDownload(QtWidgets.QWidget, Ui_download):
 
                 menu = QMenu(self.tableWidget)
 
-                menu.addAction(self.openDirAction)
-                menu.addAction(self.selectEpsAction)
+                menu.addAction(openDirAction)
+                menu.addAction(selectEpsAction)
                 assert isinstance(task, DownloadInfo)
                 if task.status in [DownloadInfo.Pause, DownloadInfo.Error]:
-                    menu.addAction(self.startAction)
+                    menu.addAction(startAction)
                 elif task.status in [DownloadInfo.Downloading, DownloadInfo.Waiting,
                                      DownloadInfo.Reading, DownloadInfo.ReadingPicture, DownloadInfo.ReadingEps]:
-                    menu.addAction(self.pauseAction)
+                    menu.addAction(pauseAction)
                 else:
                     if task.convertStatus in [DownloadInfo.Converting]:
-                        menu.addAction(self.pauseConvertAction)
+                        menu.addAction(pauseConvertAction)
                     elif task.convertStatus in [DownloadInfo.Pause, DownloadInfo.Error, DownloadInfo.NotFound]:
-                        menu.addAction(self.startConvertAction)
+                        menu.addAction(startConvertAction)
             else:
                 menu = QMenu(self.tableWidget)
 
-            menu.addAction(self.removeAction)
-            menu.addAction(self.removeFileAction)
+            menu.addAction(removeAction)
+            menu.addAction(removeFileAction)
             menu.exec_(QCursor.pos())
         pass
 

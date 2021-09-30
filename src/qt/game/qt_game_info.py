@@ -3,13 +3,13 @@ import json
 
 from PySide2 import QtWidgets, QtCore, QtGui
 from PySide2.QtCore import Qt, QSize, QEvent
-from PySide2.QtGui import QFont, QPixmap
+from PySide2.QtGui import QFont, QPixmap, QGuiApplication
 from PySide2.QtWidgets import QListWidgetItem, QLabel, QApplication, QScroller, QAbstractItemView
 
 from conf import config
 from qss.qss import QssDataMgr
 from resources.resources import DataMgr
-from src.qt.com.qtbubblelabel import QtBubbleLabel
+from src.qt.com.qtmsg import QtMsgLabel
 from src.qt.com.qtimg import QtImgMgr
 from src.qt.com.qtloading import QtLoading
 from src.qt.util.qttask import QtTaskBase
@@ -26,8 +26,7 @@ class QtGameInfo(QtWidgets.QWidget, Ui_GameInfo, QtTaskBase):
         QtTaskBase.__init__(self)
         self.setupUi(self)
         self.loadingForm = QtLoading(self)
-        self.commentWidget.InitReq(req.GetGameCommentsReq, req.SendGameCommentsReq, req.GameCommentsLikeReq)
-        self.tabWidget.setCurrentIndex(0)
+        self.commentWidget.InitReq(req.GetGameCommentsReq, req.SendGameCommentsReq, req.GameCommentsLikeReq, req.CommentsReportReq)
         self.gameId = ""
         self.url = ""
         self.path = ""
@@ -35,13 +34,11 @@ class QtGameInfo(QtWidgets.QWidget, Ui_GameInfo, QtTaskBase):
         self.lastEpsId = -1
         self.pictureData = None
 
-        self.msgForm = QtBubbleLabel(self)
+        self.msgForm = QtMsgLabel(self)
         self.picture.installEventFilter(self)
         self.title.setWordWrap(True)
         self.title.setTextInteractionFlags(Qt.TextBrowserInteraction)
         self.description.setTextInteractionFlags(Qt.TextBrowserInteraction)
-        self.description.setWordWrap(True)
-        self.description.setAlignment(Qt.AlignTop)
 
         self.description.adjustSize()
         self.title.adjustSize()
@@ -56,7 +53,7 @@ class QtGameInfo(QtWidgets.QWidget, Ui_GameInfo, QtTaskBase):
         self.epsListWidget.verticalScrollBar().setSingleStep(30)
         self.androidLink = ""
         self.iosLink = ""
-
+        self.description.adjustSize()
         self.listPictureInfo = {}
 
         # self.epsListWidget.clicked.connect(self.OpenReadImg)
@@ -79,6 +76,10 @@ class QtGameInfo(QtWidgets.QWidget, Ui_GameInfo, QtTaskBase):
         self.icon_2.setScaledContents(True)
         self.icon_3.setScaledContents(True)
         self.icon_4.setScaledContents(True)
+
+        desktop = QGuiApplication.primaryScreen().geometry()
+        self.resize(desktop.width()//4*3, desktop.height()//4*3)
+        self.move(desktop.width()//8*1, desktop.height()//8*1)
         ToolUtil.SetIcon(self)
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
@@ -91,19 +92,19 @@ class QtGameInfo(QtWidgets.QWidget, Ui_GameInfo, QtTaskBase):
     def CopyTitle(self):
         clipboard = QApplication.clipboard()
         clipboard.setText(self.title.text())
-        self.msgForm.ShowMsg("复制标题")
+        self.msgForm.ShowMsg(self.tr("复制标题"))
         return
 
     def CopyIos(self):
         clipboard = QApplication.clipboard()
         clipboard.setText(self.iosLink)
-        self.msgForm.ShowMsg("复制Ios下载地址")
+        self.msgForm.ShowMsg(self.tr("复制IOS下载地址"))
         return
 
     def CopyAndroid(self):
         clipboard = QApplication.clipboard()
         clipboard.setText(self.androidLink)
-        self.msgForm.ShowMsg("复制Android下载地址")
+        self.msgForm.ShowMsg(self.tr("复制Android下载地址"))
         return
 
     # def OpenAutor(self):
@@ -123,12 +124,6 @@ class QtGameInfo(QtWidgets.QWidget, Ui_GameInfo, QtTaskBase):
         self.icon_2.setVisible(False)
         self.icon_3.setVisible(False)
         self.icon_4.setVisible(False)
-
-    def CopyDescription(self):
-        clipboard = QApplication.clipboard()
-        clipboard.setText(self.description.text())
-        self.msgForm.ShowMsg("复制描述")
-        return
 
     def OpenBook(self, gameId):
         self.gameId = gameId
@@ -164,8 +159,8 @@ class QtGameInfo(QtWidgets.QWidget, Ui_GameInfo, QtTaskBase):
                 self.icon_3.setVisible(True)
             if data.get("data").get("game").get("ios"):
                 self.icon_4.setVisible(True)
-            self.description.setText(description)
-            self.picture.setText("图片加载中...")
+            self.description.setPlainText(description)
+            self.picture.setText(self.tr("图片加载中..."))
             fileServer = data.get("data").get("game").get("icon").get("fileServer")
             path = data.get("data").get("game").get("icon").get("path")
             self.url = fileServer
@@ -186,14 +181,14 @@ class QtGameInfo(QtWidgets.QWidget, Ui_GameInfo, QtTaskBase):
                 self.iosLink = androidLiks[0]
 
             dayStr = ToolUtil.GetUpdateStr(data.get("data").get("game").get("updated_at"))
-            self.updateTick.setText(dayStr + "更新")
+            self.updateTick.setText(dayStr + self.tr("更新"))
             if config.IsLoadingPicture:
                 self.AddDownloadTask(fileServer, path, completeCallBack=self.UpdatePicture)
             self.commentWidget.bookId = self.gameId
             self.commentWidget.LoadComment()
             for index, pic in enumerate(data.get("data").get("game").get("screenshots", [])):
                 item = QListWidgetItem(self.epsListWidget)
-                self.epsListWidget.setItemWidget(item, QLabel("图片加载中"))
+                self.epsListWidget.setItemWidget(item, QLabel(self.tr("图片加载中")))
                 self.epsListWidget.addItem(item)
                 self.AddDownloadTask(pic.get("fileServer"), pic.get("path"), completeCallBack=self.UpdateListPicture, backParam=index)
         except Exception as es:
@@ -210,7 +205,7 @@ class QtGameInfo(QtWidgets.QWidget, Ui_GameInfo, QtTaskBase):
             # self.picture.setScaledContents(True)
             self.update()
         else:
-            self.picture.setText("图片加载失败")
+            self.picture.setText(self.tr("图片加载失败"))
         return
 
     def UpdateListPicture(self, data, status, backId):
@@ -232,7 +227,7 @@ class QtGameInfo(QtWidgets.QWidget, Ui_GameInfo, QtTaskBase):
             item.setSizeHint(widget.sizeHint())
             self.epsListWidget.update()
         else:
-            widget.setText("图片加载失败")
+            widget.setText(self.tr("图片加载失败"))
         return
 
     def OpenListPicture(self, modelIndex):

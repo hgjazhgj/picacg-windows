@@ -2,9 +2,9 @@ from collections import deque
 from enum import Enum
 from math import cos, pi
 
-from PySide2.QtCore import QTimer, QDateTime, Qt
+from PySide2.QtCore import QTimer, QDateTime, Qt, QPoint
 from PySide2.QtGui import QWheelEvent
-from PySide2.QtWidgets import QApplication, QGraphicsView
+from PySide2.QtWidgets import QApplication
 
 
 class SmoothMode(Enum):
@@ -16,9 +16,8 @@ class SmoothMode(Enum):
     COSINE = 4
 
 
-class QtComGraphicsView(QGraphicsView):
-    def __init__(self, parent):
-        super(self.__class__, self).__init__(parent)
+class QtScroll:
+    def __init__(self):
         self.fps = 60
         self.duration = 400
         self.stepsTotal = 0
@@ -33,6 +32,14 @@ class QtComGraphicsView(QGraphicsView):
         self.qEventParam = []
 
     def wheelEvent(self, e):
+        from src.qt.read.qtreadimg import ReadMode
+        if self.parent().qtTool.stripModel not in [ReadMode.UpDown, ReadMode.RightLeftScroll, ReadMode.LeftRightScroll]:
+            if e.angleDelta().y() < 0:
+                self.parent().qtTool.NextPage()
+            else:
+                self.parent().qtTool.LastPage()
+            return
+
         if self.smoothMode == SmoothMode.NO_SMOOTH:
             super().wheelEvent(e)
             return
@@ -67,15 +74,31 @@ class QtComGraphicsView(QGraphicsView):
         # 如果事件已处理完，就将其移出队列
         while self.stepsLeftQueue and self.stepsLeftQueue[0][1] == 0:
             self.stepsLeftQueue.popleft()
-        # 构造滚轮事件
-        e = QWheelEvent(self.qEventParam[0],
-                        self.qEventParam[1],
-                        round(totalDelta),
-                        self.qEventParam[2],
-                        Qt.NoModifier)
         # print(e)
         # 将构造出来的滚轮事件发送给app处理
-        QApplication.sendEvent(self.verticalScrollBar(), e)
+        from src.qt.read.qtreadimg import ReadMode
+        if self.parent().qtTool.stripModel in [ReadMode.UpDown]:
+            # 构造滚轮事件
+            e = QWheelEvent(self.qEventParam[0],
+                            self.qEventParam[1],
+                            QPoint(),
+                            QPoint(0, totalDelta),
+                            round(totalDelta),
+                            Qt.Vertical,
+                            self.qEventParam[2],
+                            Qt.NoModifier)
+            QApplication.sendEvent(self.verticalScrollBar(), e)
+        else:
+            # 构造滚轮事件
+            e = QWheelEvent(self.qEventParam[0],
+                            self.qEventParam[1],
+                            QPoint(),
+                            QPoint(0, totalDelta),
+                            round(totalDelta),
+                            Qt.Horizontal,
+                            self.qEventParam[2],
+                            Qt.NoModifier)
+            QApplication.sendEvent(self.horizontalScrollBar(), e)
         # 如果队列已空，停止滚动
         if not self.stepsLeftQueue:
             self.smoothMoveTimer.stop()

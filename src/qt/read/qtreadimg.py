@@ -1,14 +1,18 @@
+from enum import Enum
+from functools import partial
+
 from PySide2 import QtWidgets, QtGui
-from PySide2.QtCore import Qt, QRectF, QPointF, QEvent, QSize
-from PySide2.QtGui import QPixmap, QMatrix, QImage
-from PySide2.QtWidgets import QDesktopWidget, QMessageBox
+from PySide2.QtCore import Qt, QRectF, QPointF, QEvent, QSize, Signal
+from PySide2.QtGui import QPixmap, QMatrix, QImage, QCursor, QGuiApplication
+from PySide2.QtWidgets import QMessageBox, QMenu
 
 from conf import config
 from src.index.book import BookMgr
-from src.qt.com.qtbubblelabel import QtBubbleLabel
+from src.qt.com.qtmsg import QtMsgLabel
 from src.qt.com.qtloading import QtLoading
 from src.qt.qtmain import QtOwner
 from src.qt.read.qtreadimg_frame import QtImgFrame
+from src.qt.read.qtreadimg_scroll import ReadScrollArea
 from src.qt.struct.qt_define import QtFileData
 from src.qt.util.qttask import QtTaskBase
 from src.server import req
@@ -17,7 +21,18 @@ from src.util.status import Status
 from src.util.tool import time_me, CTime
 
 
+class ReadMode(Enum):
+    """ 阅读模式 """
+    UpDown = 0              # 上下模式
+    LeftRight = 1           # 默认
+    LeftRightDouble = 2     # 左右双页
+    RightLeftDouble = 3     # 右左双页
+    LeftRightScroll = 4     # 左右滚动
+    RightLeftScroll = 5     # 右左滚动
+
+
 class QtReadImg(QtWidgets.QWidget, QtTaskBase):
+
     def __init__(self):
         super(self.__class__, self).__init__()
         self.loadingForm = QtLoading(self)
@@ -29,23 +44,91 @@ class QtReadImg(QtWidgets.QWidget, QtTaskBase):
 
         self.pictureData = {}
         self.maxPic = 0
+        desktop = QGuiApplication.primaryScreen().geometry()
+        self.resize(desktop.width() // 4 * 3, desktop.height() - 100)
+        self.move(desktop.width() // 8, 0)
 
         self.gridLayout = QtWidgets.QGridLayout(self)
+        self.gridLayout.setSpacing(0)
         self.gridLayout.setContentsMargins(0, 0, 0, 0)
         self.frame = QtImgFrame(self)
-
+        # self.gridLayout.addWidget(self.scrollArea)
         self.gridLayout.addWidget(self.frame)
         self.setMinimumSize(300, 300)
-        self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.ShowAndCloseTool)
-        self.isStripModel = True
+        self.stripModel = ReadMode(config.LookReadMode)
         self.setWindowFlags(self.windowFlags() &~ Qt.WindowMaximizeButtonHint &~ Qt.WindowMinimizeButtonHint)
-
         self.category = []
         self.isInit = False
         self.epsName = ""
 
         ToolUtil.SetIcon(self)
+
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.SelectMenu)
+        self.isShowMenu = False
+
+    @property
+    def scrollArea(self):
+        return self.frame.scrollArea
+
+    def LoadSetting(self):
+        self.stripModel = ReadMode(config.LookReadMode)
+        self.ChangeReadMode(config.LookReadMode)
+        return
+
+    def SelectMenu(self):
+        popMenu = QMenu(self)
+        action = popMenu.addAction(self.tr("菜单"))
+        action.triggered.connect(self.ShowAndCloseTool)
+
+        action = popMenu.addAction(self.tr("全屏切换"))
+        action.triggered.connect(self.qtTool.FullScreen)
+
+        menu2 = popMenu.addMenu(self.tr("阅读模式"))
+
+        def AddReadMode(name, value):
+            action = menu2.addAction(name)
+            action.triggered.connect(partial(self.ChangeReadMode, value))
+            if self.stripModel.value == value:
+                action.setCheckable(True)
+                action.setChecked(True)
+        AddReadMode(self.tr("上下滚动"), 0)
+        AddReadMode(self.tr("默认"), 1)
+        AddReadMode(self.tr("左右双页"), 2)
+        AddReadMode(self.tr("右左双页"), 3)
+        AddReadMode(self.tr("左右滚动"), 4)
+        AddReadMode(self.tr("右左滚动"), 5)
+
+        menu3 = popMenu.addMenu(self.tr("缩放"))
+
+        def AddScaleMode(name, value):
+            action = menu3.addAction(name)
+            action.triggered.connect(partial(self.qtTool.ScalePicture, value))
+            if (self.frame.scaleCnt+10) * 10 == value:
+                action.setCheckable(True)
+                action.setChecked(True)
+        AddScaleMode("50%", 50)
+        AddScaleMode("60%", 60)
+        AddScaleMode("70%", 70)
+        AddScaleMode("80%", 80)
+        AddScaleMode("90%", 90)
+        AddScaleMode("100%", 100)
+        AddScaleMode("120%", 120)
+        AddScaleMode("140%", 140)
+        AddScaleMode("160%", 160)
+        AddScaleMode("180%", 180)
+        AddScaleMode("200%", 200)
+
+        menu3 = popMenu.addMenu(self.tr("切页"))
+        action = menu3.addAction(self.tr("上一章"))
+        action.triggered.connect(self.qtTool.OpenLastEps)
+        action = menu3.addAction(self.tr("下一章"))
+        action.triggered.connect(self.qtTool.OpenNextEps)
+
+        action = popMenu.addAction(self.tr("退出"))
+        action.triggered.connect(self.close)
+        self.isShowMenu = True
+        popMenu.exec_(QCursor.pos())
 
     @property
     def graphicsView(self):
@@ -72,12 +155,13 @@ class QtReadImg(QtWidgets.QWidget, QtTaskBase):
         self.epsId = 0
         self.maxPic = 0
         self.curIndex = 0
-        if not self.isStripModel:
-            self.qtTool.zoomSlider.setValue(100)
-            self.frame.scaleCnt = 0
-        else:
-            self.qtTool.zoomSlider.setValue(120)
-            self.frame.scaleCnt = 2
+        # if self.stripModel != ReadMode.UpDown:
+        #     self.qtTool.zoomSlider.setValue(100)
+        #     self.frame.scaleCnt = 0
+        # else:
+        #     self.qtTool.zoomSlider.setValue(120)
+        #     self.frame.scaleCnt = 2
+        self.frame.oldValue = 0
         self.pictureData.clear()
         self.ClearTask()
         self.ClearConvert()
@@ -91,11 +175,10 @@ class QtReadImg(QtWidgets.QWidget, QtTaskBase):
         if info:
             self.category = info.tags[:]
             self.category.extend(info.categories)
+
         self.qtTool.checkBox.setChecked(config.IsOpenWaifu)
         self.qtTool.SetData(isInit=True)
         # self.graphicsGroup.setPixmap(QPixmap())
-        self.frame.InitPixMap()
-        self.frame.UpdatePixMap()
         self.qtTool.SetData()
         # self.qtTool.show()
         self.bookId = bookId
@@ -103,7 +186,7 @@ class QtReadImg(QtWidgets.QWidget, QtTaskBase):
         self.AddHistory()
 
         if not self.isInit:
-            desktop = QDesktopWidget()
+            desktop = QGuiApplication.primaryScreen().geometry()
             self.resize(desktop.width()//4*3, desktop.height()-100)
             self.move(desktop.width()//8, 0)
             self.isInit = True
@@ -118,34 +201,17 @@ class QtReadImg(QtWidgets.QWidget, QtTaskBase):
         self.StartLoadPicUrl(isLastEps, pageIndex)
         self.setWindowTitle(self.epsName)
         self.show()
+
+        if config.LookReadFull:
+            self.showFullScreen()
+            self.qtTool.fullButton.setText(self.tr("退出全屏"))
+        else:
+            self.showNormal()
+            self.qtTool.fullButton.setText(self.tr("全屏"))
+
         if config.IsTips:
             config.IsTips = 0
-            msg = QMessageBox()
-            msg.setStyleSheet("QLabel{"
-                                 "min-width: 300px;"
-                                 "min-height: 300px; "
-                                 "}")
-            msg.setWindowTitle("操作提示")
-            msg.setText("""
-            操作提示：             
-                下一页：
-                    点击右下角区域
-                    左滑图片
-                    使用键盘→
-                上一页：
-                    点击左下角区域
-                    右滑图片
-                    使用键盘←
-                打开菜单：
-                    点击上方区域
-                    点击右键
-                缩放：
-                    按+,-
-                退出：
-                    使用键盘ESC
-            """)
-            msg.setStandardButtons(QMessageBox.Ok)
-            msg.exec()
+            self.frame.InitHelp()
 
     def ReturnPage(self):
         self.AddHistory()
@@ -179,6 +245,9 @@ class QtReadImg(QtWidgets.QWidget, QtTaskBase):
             self.pictureData.clear()
             self.pictureData = newDict
             self.ClearWaitConvertIds(removeTaskIds)
+
+        if not self.bookId:
+            return
 
         for i in preLoadList:
             if i >= self.maxPic or i < 0:
@@ -220,11 +289,14 @@ class QtReadImg(QtWidgets.QWidget, QtTaskBase):
             bookInfo = BookMgr().books.get(self.bookId)
             epsInfo = bookInfo.eps[self.epsId]
             self.maxPic = len(epsInfo.pics)
+
             if isLastEps:
                 self.curIndex = self.maxPic - 1
             elif 0 < pageIndex < self.maxPic:
                 self.curIndex = pageIndex
-                QtBubbleLabel().ShowMsgEx(self, "继续阅读第{}页".format(pageIndex+1))
+                QtMsgLabel().ShowMsgEx(self, self.tr("继续阅读第")+str(pageIndex+1)+self.tr("页"))
+
+            self.scrollArea.InitAllQLabel(self.maxPic, self.curIndex)
             self.qtTool.UpdateSlider()
             self.CheckLoadPicture()
             self.qtTool.InitSlider(self.maxPic)
@@ -263,7 +335,7 @@ class QtReadImg(QtWidgets.QWidget, QtTaskBase):
             # if index == self.curIndex:
             #     # self.ShowImg()
             #     pass
-            # elif self.isStripModel and self.curIndex < index <= self.curIndex + 2:
+            # elif self.stripModel and self.curIndex < index <= self.curIndex + 2:
             #     # self.ShowOtherPage()
             #     self.CheckLoadPicture()
             # else:
@@ -279,34 +351,51 @@ class QtReadImg(QtWidgets.QWidget, QtTaskBase):
         p.cacheImage = data
         if index == self.curIndex:
             self.ShowImg()
-        elif self.isStripModel and self.curIndex < index <= self.curIndex + 2:
+        elif self.stripModel in [ReadMode.UpDown, ReadMode.RightLeftScroll, ReadMode.LeftRightScroll] and self.curIndex < index <= self.curIndex + 2:
+            self.ShowOtherPage()
+        elif self.stripModel in [ReadMode.RightLeftDouble, ReadMode.LeftRightDouble] and self.curIndex < index <= self.curIndex + 1:
             self.ShowOtherPage()
         return
 
+    def ShowPage(self, index):
+        if index >= self.maxPic:
+            return
+
+        p = self.pictureData.get(index)
+        if not p or (not p.data) or (not p.cacheImage):
+            self.scrollArea.SetPixIem(index, None)
+            return
+
+        waifu2x = False
+        assert isinstance(p, QtFileData)
+        if not config.IsOpenWaifu:
+            p2 = p.cacheImage
+
+        elif p.cacheWaifu2xImage:
+            waifu2x = True
+            p2 = p.cacheWaifu2xImage
+        else:
+            p2 = p.cacheImage
+
+        pixMap = QPixmap(p2)
+        self.scrollArea.SetPixIem(index, pixMap, waifu2x)
+
     @time_me
-    def ShowOtherPage(self, isShowWaifu=True):
-        for index in range(self.curIndex+1, self.curIndex+3):
-            p = self.pictureData.get(index)
-            if not p or (not p.data) or (not p.cacheImage):
-                self.frame.SetPixIem(index-self.curIndex, QPixmap())
-                continue
+    def ShowOtherPage(self):
+        if self.stripModel in [ReadMode.UpDown, ReadMode.RightLeftScroll, ReadMode.LeftRightScroll]:
+            size = 3
+        elif self.stripModel in [ReadMode.LeftRightDouble, ReadMode.RightLeftDouble]:
+            size = 2
+        else:
+            size = 0
 
-            assert isinstance(p, QtFileData)
-            if not isShowWaifu:
-                p2 = p.cacheImage
-
-            elif p.cacheWaifu2xImage:
-                p2 = p.cacheWaifu2xImage
-            else:
-                p2 = p.cacheImage
-
-            pixMap = QPixmap(p2)
-            self.frame.SetPixIem(index-self.curIndex, pixMap)
+        for index in range(self.curIndex+1, self.curIndex+size):
+            self.ShowPage(index)
         # self.frame.ScalePicture()
         return True
 
     @time_me
-    def ShowImg(self, isShowWaifu=True):
+    def ShowImg(self):
         p = self.pictureData.get(self.curIndex)
 
         if not p or (not p.data) or (not p.cacheImage):
@@ -315,7 +404,7 @@ class QtReadImg(QtWidgets.QWidget, QtTaskBase):
             else:
                 self.qtTool.SetData(state=QtFileData.Converting)
 
-            self.frame.SetPixIem(0, QPixmap())
+            self.scrollArea.SetPixIem(self.curIndex, None)
 
             self.qtTool.modelBox.setEnabled(False)
             self.frame.UpdateProcessBar(None)
@@ -326,13 +415,15 @@ class QtReadImg(QtWidgets.QWidget, QtTaskBase):
         if config.CanWaifu2x:
             self.qtTool.modelBox.setEnabled(True)
         assert isinstance(p, QtFileData)
-        if not isShowWaifu:
+        waifu2x = False
+        if not config.IsOpenWaifu:
             self.frame.waifu2xProcess.hide()
             self.qtTool.SetData(waifuSize=QSize(0, 0), waifuDataLen=0)
             p2 = p.cacheImage
 
         elif p.cacheWaifu2xImage:
             p2 = p.cacheWaifu2xImage
+            waifu2x = True
             self.frame.waifu2xProcess.hide()
             self.qtTool.SetData(waifuSize=p.waifuQSize, waifuDataLen=p.waifuDataSize,
                                 waifuTick=p.waifuTick)
@@ -348,86 +439,11 @@ class QtReadImg(QtWidgets.QWidget, QtTaskBase):
         self.qtTool.UpdateText(p.model)
         
         pixMap = QPixmap(p2)
-        self.frame.SetPixIem(0, pixMap)
+        self.scrollArea.SetPixIem(self.curIndex, pixMap, waifu2x)
         # self.graphicsView.setSceneRect(QRectF(QPointF(0, 0), QPointF(pixMap.width(), pixMap.height())))
         # self.frame.ScalePicture()
         self.CheckLoadPicture()
         return True
-
-    def eventFilter(self, obj, ev):
-        if ev.type() == QEvent.KeyPress:
-            return True
-        else:
-            return super(self.__class__, self).eventFilter(obj, ev)
-
-    def zoomIn(self):
-        """放大"""
-        self.zoom(1.1)
-
-    def zoomOut(self):
-        """缩小"""
-        self.zoom(1/1.1)
-
-    def zoom(self, scaleV):
-        """缩放
-        :param factor: 缩放的比例因子
-        """
-        # q = QMatrix()
-        # q.setMatrix(1, self.graphicsView.matrix().m12(), self.graphicsView.matrix().m21(), 1, self.graphicsView.matrix().dx(), self.graphicsView.matrix().dy())
-        # self.graphicsView.setMatrix(q, False)
-
-        # _factor = self.graphicsView.transform().scale(
-        #     factor, factor).mapRect(QRectF(0, 0, 1, 1)).width()
-        # print(_factor)
-        # if _factor < 0.07 or _factor > 100:
-        #     # 防止过大过小
-        #     return
-        if self.frame.scaleCnt == scaleV:
-            return
-        # for _ in range(abs(scaleV - self.frame.scaleCnt)):
-        #     if scaleV - self.frame.scaleCnt > 0:
-        #         self.graphicsView.scale(1.1, 1.1)
-        #     else:
-        #         self.graphicsView.scale(1/1.1, 1/1.1)
-        self.frame.scaleCnt = scaleV
-        self.frame.ScalePicture()
-
-    def keyReleaseEvent(self, ev):
-        if ev.modifiers() == Qt.ShiftModifier and ev.key() == Qt.Key_Left:
-            self.qtTool.OpenLastEps()
-            return
-        if ev.modifiers() == Qt.ShiftModifier and ev.key() == Qt.Key_Right:
-            self.qtTool.OpenNextEps()
-            return
-        # print(ev.modifiers, ev.key())
-        if ev.key() == Qt.Key_Plus or ev.key() == Qt.Key_Equal:
-            self.qtTool.zoomSlider.setValue(self.qtTool.zoomSlider.value()+10)
-            return
-        if ev.key() == Qt.Key_Minus:
-            self.qtTool.zoomSlider.setValue(self.qtTool.zoomSlider.value()-10)
-            return
-        if ev.key() == Qt.Key_Left:
-            self.qtTool.LastPage()
-            return
-        elif ev.key() == Qt.Key_Right:
-            self.qtTool.NextPage()
-            return
-        elif ev.key() == Qt.Key_Escape:
-            if self.windowState() == Qt.WindowFullScreen:
-                self.showNormal()
-                self.frame.qtTool.fullButton.setText("全屏")
-                return
-            self.qtTool.ReturnPage()
-            return
-        # elif ev.key() == Qt.Key_Up:
-        #     point = self.graphicsItem.pos()
-        #     self.graphicsItem.setPos(point.x(), point.y()+50)
-        #     return
-        # elif ev.key() == Qt.Key_Down:
-        #     point = self.graphicsItem.pos()
-        #     self.graphicsItem.setPos(point.x(), point.y()-50)
-        #     return
-        super(self.__class__, self).keyReleaseEvent(ev)
 
     def AddHistory(self):
         bookName = QtOwner().owner.bookInfoForm.bookName
@@ -452,7 +468,7 @@ class QtReadImg(QtWidgets.QWidget, QtTaskBase):
         if index == self.curIndex:
             self.qtTool.SetData(waifuState=p.waifuState)
             # self.ShowImg()
-        elif self.isStripModel and self.curIndex < index <= self.curIndex + 2:
+        elif self.stripModel in [ReadMode.UpDown, ReadMode.RightLeftScroll, ReadMode.LeftRightScroll] and self.curIndex < index <= self.curIndex + 2:
             # self.ShowOtherPage()
             self.CheckLoadPicture()
         else:
@@ -467,7 +483,9 @@ class QtReadImg(QtWidgets.QWidget, QtTaskBase):
         p.cacheWaifu2xImage = data
         if index == self.curIndex:
             self.ShowImg()
-        elif self.isStripModel and self.curIndex < index <= self.curIndex + 2:
+        elif self.stripModel in [ReadMode.UpDown, ReadMode.RightLeftScroll, ReadMode.LeftRightScroll] and self.curIndex < index <= self.curIndex + 2:
+            self.ShowOtherPage()
+        elif self.stripModel in [ReadMode.RightLeftDouble, ReadMode.LeftRightDouble] and self.curIndex < index <= self.curIndex + 1:
             self.ShowOtherPage()
         return
 
@@ -492,3 +510,6 @@ class QtReadImg(QtWidgets.QWidget, QtTaskBase):
             data = QtFileData()
             self.pictureData[i] = data
         self.qtTool.SetData(state=self.pictureData[i].state)
+
+    def ChangeReadMode(self, index):
+        self.qtTool.comboBox.setCurrentIndex(index)

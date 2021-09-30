@@ -7,9 +7,9 @@ from PySide2.QtWidgets import QFileDialog
 
 from conf import config
 from qss.qss import QssDataMgr
-from src.qt.com.qtbubblelabel import QtBubbleLabel
+from src.qt.com.qtmsg import QtMsgLabel
 from src.qt.qtmain import QtOwner
-from src.util import Log
+from src.util import Log, ToolUtil
 from ui.setting import Ui_Setting
 
 
@@ -21,11 +21,12 @@ class QtSetting(QtWidgets.QWidget, Ui_Setting):
         self.settings = QSettings('config.ini', QSettings.IniFormat)
         self.setWindowModality(Qt.ApplicationModal)
         self.mainSize = None
-        self.bookSize = QSize(900, 1020)
-        self.readSize = QSize(1120, 1020)
+        self.bookSize = None
+        self.readSize = None
         self.userId = ""
         self.passwd = ""
         self.gpuInfos = []
+        ToolUtil.SetIcon(self)  # set window icon
         # for text in QssDataMgr.files:
         #     self.themeBox.addItem(text)
 
@@ -35,6 +36,14 @@ class QtSetting(QtWidgets.QWidget, Ui_Setting):
         super(self.__class__, self).show()
 
     def LoadSetting(self):
+        config.IsUpdate = int(self.settings.value("IsUpdate") or config.IsUpdate)
+        self.checkBox_IsUpdate.setChecked(config.IsUpdate)
+
+        # language
+        config.Language = str(self.settings.value('Language'))
+        # self.langSelect.setCurrentIndex(config.DownloadThreadNum - 2)
+        self.langSelect.setCurrentText(config.Language)
+
         config.DownloadThreadNum = int(self.settings.value("DownloadThreadNum") or config.DownloadThreadNum)
         self.comboBox.setCurrentIndex(config.DownloadThreadNum-2)
 
@@ -45,8 +54,8 @@ class QtSetting(QtWidgets.QWidget, Ui_Setting):
 
         config.IsHttpProxy = self.GetSettingV("Proxy/IsHttp", config.IsHttpProxy)
         self.httpProxy.setChecked(config.IsHttpProxy)
-        if not config.IsHttpProxy:
-            config.HttpProxy = ""
+        # if not config.IsHttpProxy:
+        #     config.HttpProxy = ""
 
         config.ChatProxy = self.GetSettingV("ChatProxy", config.ChatProxy)
         self.chatProxy.setChecked(bool(config.ChatProxy))
@@ -95,17 +104,22 @@ class QtSetting(QtWidgets.QWidget, Ui_Setting):
         self.logBox.setCurrentIndex(config.LogIndex)
         Log.UpdateLoggingLevel()
 
-        config.IsTips = self.GetSettingV("Waifu2x/IsTips", config.IsTips)
+        # config.IsTips = self.GetSettingV("Waifu2x/IsTips", config.IsTips)
         config.ChatSendAction = self.GetSettingV("Waifu2x/ChatSendAction", config.ChatSendAction)
         config.IsOpenWaifu = self.GetSettingV("Waifu2x/IsOpen2", config.IsOpenWaifu)
         self.checkBox.setChecked(config.IsOpenWaifu)
 
         self.userId = self.settings.value("UserId")
         self.passwd = self.settings.value("Passwd2")
-        self.passwd = base64.b64decode(self.passwd).decode("utf-8") if self.passwd else self.passwd
+        self.userId = self.userId if isinstance(self.userId, str) else ""
+        self.passwd = base64.b64decode(self.passwd).decode("utf-8") if self.passwd else ""
         themId = self.GetSettingV("ThemeId", 0)
         self.themeBox.setCurrentIndex(themId)
         self.SetTheme()
+
+        config.LookReadMode = self.GetSettingV("Read/LookReadMode", config.LookReadMode)
+        # config.LookReadScale = self.GetSettingV("Read/LookReadScale", config.LookReadScale)
+        config.LookReadFull = self.GetSettingV("Read/LookReadFull", config.LookReadFull)
         return
 
     def GetSettingV(self, key, defV=None):
@@ -142,7 +156,7 @@ class QtSetting(QtWidgets.QWidget, Ui_Setting):
         self.settings.setValue("Passwd", base64.b64encode(passwd.encode("utf-8")))
         self.settings.setValue("Passwd2", base64.b64encode(passwd.encode("utf-8")))
         self.settings.setValue("Waifu2x/IsOpen2", int(config.IsOpenWaifu))
-        self.settings.setValue("Waifu2x/IsTips", int(config.IsTips))
+        # self.settings.setValue("Waifu2x/IsTips", int(config.IsTips))
         self.settings.setValue("Waifu2x/ChatSendAction", config.ChatSendAction)
 
     def SetTheme(self):
@@ -155,12 +169,24 @@ class QtSetting(QtWidgets.QWidget, Ui_Setting):
             text = "flatblack"
         else:
             text = "flatwhite"
+        config.ThemeText = text
+
         data = QssDataMgr().GetData(text)
         QtOwner().owner.app.setPalette(QPalette(QColor(data[20:27])))
         QtOwner().owner.app.setStyleSheet(data)
+        if text == "flatblack":
+            QtOwner().owner.qtReadImg.qtTool.setAttribute(Qt.WA_StyledBackground, True)
+            QtOwner().owner.qtReadImg.qtTool.setAutoFillBackground(True)
+            QtOwner().owner.qtReadImg.qtTool.setPalette(QPalette(QColor(data[20:27])))
+        elif text == "flatwhite":
+            QtOwner().owner.qtReadImg.qtTool.setAttribute(Qt.WA_StyledBackground, True)
+            QtOwner().owner.qtReadImg.qtTool.setAutoFillBackground(True)
+            QtOwner().owner.qtReadImg.qtTool.setPalette(QPalette(QColor(data[20:27])))
 
     def SaveSetting(self):
 
+        config.IsUpdate = 1 if self.checkBox_IsUpdate.isChecked() else 0
+        config.Language = self.langSelect.currentText()
         config.DownloadThreadNum = int(self.comboBox.currentText())
         config.HttpProxy = self.httpEdit.text()
         config.SavePath = self.saveEdit.text()
@@ -168,6 +194,8 @@ class QtSetting(QtWidgets.QWidget, Ui_Setting):
         config.IsHttpProxy = 1 if self.httpProxy.isChecked() else 0
         config.PreLoading = self.preDownNum.value()
 
+        self.settings.setValue("IsUpdate", config.IsUpdate)
+        self.settings.setValue('Language', config.Language)
         self.settings.setValue("DownloadThreadNum", config.DownloadThreadNum)
         self.settings.setValue("Proxy/Http", config.HttpProxy)
         self.settings.setValue("Proxy/IsHttp", config.IsHttpProxy)
@@ -204,13 +232,15 @@ class QtSetting(QtWidgets.QWidget, Ui_Setting):
 
         self.SetSettingV("ThemeId", self.themeBox.currentIndex())
 
+        QtOwner().owner.LoadTranslate()
+        QtOwner().owner.RetranslateUi()
         Log.UpdateLoggingLevel()
         # QtWidgets.QMessageBox.information(self, '保存成功', "成功", QtWidgets.QMessageBox.Yes)
-        QtBubbleLabel.ShowMsgEx(self, "保存成功")
+        QtMsgLabel.ShowMsgEx(self, self.tr("保存成功"))
         self.LoadSetting()
 
     def SelectSavePath(self):
-        url = QFileDialog.getExistingDirectory(self, "选择文件夹")
+        url = QFileDialog.getExistingDirectory(self, self.tr("选择文件夹"))
         if url:
             self.saveEdit.setText(url)
 
