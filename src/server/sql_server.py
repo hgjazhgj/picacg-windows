@@ -1,16 +1,24 @@
-import json
+import os
 import pickle
 import sqlite3
+import sys
 import threading
 import time
 from queue import Queue
 
-from conf import config
-from src.qt.com.langconv import Converter
-from src.util import Singleton, Log
-
-
 # 一本书
+from config import config
+from config.setting import Setting
+from task.task_sql import TaskSql
+from tools.book import BookMgr
+from tools.langconv import Converter
+from tools.log import Log
+from tools.singleton import Singleton
+from tools.status import Status
+from tools.tool import time_me
+from tools.user import User
+
+
 class DbBook(object):
     def __init__(self):
         self.id = ""             # 唯一标识
@@ -39,34 +47,58 @@ class SqlServer(Singleton):
     DbInfos = dict()
     DbInfos["book"] = "data/book.db"
 
+    TaskCheck = 0
     TaskTypeSql = 1
     TaskTypeSelectBook = 100
     TaskTypeSelectWord = 101
     TaskTypeSelectUpdate = 102
     TaskTypeSelectFavorite = 103
-    TaskTypeCacheBook = 104
+    TaskTypeCacheBook = 104          # 缓存
+    TaskTypeCategoryBookNum = 105    # 查询分类数量
+    TaskTypeSearchBookNum = 106      # 查询分页数量
     TaskTypeUpdateBook = 2
     TaskTypeUpdateFavorite= 3
     TaskTypeClose = 4
 
     def __init__(self):
         self._inQueue = {}
+        self.cacheWord = []
+        self.data = []
         for i in self.DbInfos.keys():
             self._inQueue[i] = Queue()
             thread = threading.Thread(target=self._Run, args=(i, ))
+            thread.setName("DB-"+str(i))
             # thread.setDaemon(True)
             thread.start()
 
     def AddSqlTask(self, table, taskType, data, taskId):
         self._inQueue[table].put((taskType, data, taskId))
 
+    def SetCacheWord(self, data):
+        self.cacheWord = data
+        self.LoadCacheWord()
+
     def Stop(self):
+        SqlServer.SaveCacheWord()
         for i in self.DbInfos.keys():
             self._inQueue[i].put((self.TaskTypeClose, "", ""))
 
     def _Run(self, bookName):
         bookPath = self.DbInfos.get(bookName)
-        conn = sqlite3.connect(bookPath)
+        isInit = True
+        conn = None
+        try:
+            if sys.platform == "linux":
+                path = os.path.join(Setting.GetConfigPath(), bookPath)
+                conn = sqlite3.connect(path)
+            else:
+                conn = sqlite3.connect(bookPath)
+        except Exception as es:
+            Log.Error(es)
+            from qt_owner import QtOwner
+            QtOwner().isUseDb = False
+            isInit = False
+
         inQueue = self._inQueue[bookName]
         while True:
             try:
@@ -77,14 +109,22 @@ class SqlServer(Singleton):
             inQueue.task_done()
             try:
                 (taskType, data, backId) = task
-                if taskType == self.TaskTypeSql:
+
+                if taskType == self.TaskTypeClose:
+                    break
+                if not isInit:
+                    TaskSql().taskObj.sqlBack.emit(backId, pickle.dumps(""))
+                    continue
+                if taskType == self.TaskCheck:
+                    data2 = pickle.dumps(str(int(isInit)))
+                    TaskSql().taskObj.sqlBack.emit(backId, data2)
+                elif taskType == self.TaskTypeSql:
                     cur = conn.cursor()
                     cur.execute(data)
                     cur.execute("COMMIT")
                     if backId:
                         data2 = pickle.dumps("")
-                        from src.qt.util.qttask import QtTask
-                        QtTask().sqlBack.emit(backId, data2)
+                        TaskSql().taskObj.sqlBack.emit(backId, data2)
                 elif taskType == self.TaskTypeSelectBook:
                     self._SelectBook(conn, data, backId)
                 elif taskType == self.TaskTypeSelectWord:
@@ -95,15 +135,19 @@ class SqlServer(Singleton):
                     self._SelectFavoriteIds(conn, data, backId)
                 elif taskType == self.TaskTypeCacheBook:
                     self._SelectCacheBook(conn, data, backId)
+                elif taskType == self.TaskTypeCategoryBookNum:
+                    self._SelectCategoryBookNum(conn, data, backId)
+                elif taskType == self.TaskTypeSearchBookNum:
+                    self._SelectBookNum(conn, data, backId)
                 elif taskType == self.TaskTypeUpdateFavorite:
                     self._UpdateFavorite(conn, data, backId)
                 elif taskType == self.TaskTypeUpdateBook:
                     self._UpdateBookInfo(conn, data, backId)
-                elif taskType == self.TaskTypeClose:
-                    break
+
             except Exception as es:
                 Log.Error(es)
-        conn.close()
+        if conn:
+            conn.close()
         Log.Info("db: close conn:{}".format(bookName))
         return
 
@@ -135,8 +179,28 @@ class SqlServer(Singleton):
             books.append(info)
         data = pickle.dumps(books)
         if backId:
-            from src.qt.util.qttask import QtTask
-            QtTask().sqlBack.emit(backId, data)
+            TaskSql().taskObj.sqlBack.emit(backId, data)
+
+    def _SelectBookNum(self, conn, sql, backId):
+        cur = conn.cursor()
+        nums = 0
+        cur.execute(sql)
+        for data in cur.fetchall():
+            nums = data[0]
+        data = pickle.dumps(nums)
+        if backId:
+            TaskSql().taskObj.sqlBack.emit(backId, data)
+
+    def _SelectCategoryBookNum(self, conn, sql, backId):
+        cur = conn.cursor()
+        from tools.category import CateGoryMgr
+        nums = {}
+        cur.execute("select category, count(*) from category where bookId in ({}) group by category".format(sql))
+        for data in cur.fetchall():
+            nums[data[0]] = data[1]
+        data = pickle.dumps(nums)
+        if backId:
+            TaskSql().taskObj.sqlBack.emit(backId, data)
 
     def _SelectWord(self, conn, sql, backId):
         cur = conn.cursor()
@@ -146,8 +210,7 @@ class SqlServer(Singleton):
             words.append(data[1])
         data = pickle.dumps(words)
         if backId:
-            from src.qt.util.qttask import QtTask
-            QtTask().sqlBack.emit(backId, data)
+            TaskSql().taskObj.sqlBack.emit(backId, data)
 
     def _SelectUpdateInfo(self, conn, sql, backId):
         cur = conn.cursor()
@@ -167,25 +230,24 @@ class SqlServer(Singleton):
 
         data = pickle.dumps((nums, time, version))
         if backId:
-            from src.qt.util.qttask import QtTask
-            QtTask().sqlBack.emit(backId, data)
+            TaskSql().taskObj.sqlBack.emit(backId, data)
 
     def _SelectFavoriteIds(self, conn, sql, backId):
         cur = conn.cursor()
-        from src.user.user import User
-        cur.execute("select * from favorite where user ='{}'".format(User().userId))
+        sql = "select id,sortId from favorite where user ='{}'".format(User().userId)
+        cur.execute(sql)
         allFavoriteIds = []
         for data in cur.fetchall():
-            allFavoriteIds.append(data[0])
+            allFavoriteIds.append((data[0], data[1]))
         data = pickle.dumps(allFavoriteIds)
         if backId:
-            from src.qt.util.qttask import QtTask
-            QtTask().sqlBack.emit(backId, data)
+            TaskSql().taskObj.sqlBack.emit(backId, data)
 
     def _SelectCacheBook(self, conn, bookId, backId):
         cur = conn.cursor()
         cur.execute("select id, title, title2, author, chineseTeam, description, epsCount, pages, finished, likesCount, categories, tags," \
               "created_at, updated_at, path, fileServer, creator, totalLikes, totalViews from book where id ='{}'".format(bookId))
+        v = {}
         allFavoriteIds = []
         for data in cur.fetchall():
             info = DbBook()
@@ -208,14 +270,15 @@ class SqlServer(Singleton):
             info.creator = data[16]
             info.totalLikes = data[17]
             info.totalViews = data[18]
-            from src.index.book import BookMgr
             BookMgr().AddBookByDb(info)
             allFavoriteIds.append(info)
-        data = pickle.dumps(allFavoriteIds)
+        v["bookList"] = allFavoriteIds
+        v["st"] = Status.Ok
+        data = pickle.dumps(v)
         if backId:
-            from src.qt.util.qttask import QtTask
-            QtTask().sqlBack.emit(backId, data)
+            TaskSql().taskObj.sqlBack.emit(backId, data)
 
+    @time_me
     def _UpdateBookInfo(self, conn, data, backId):
         cur = conn.cursor()
 
@@ -238,6 +301,15 @@ class SqlServer(Singleton):
                             book.creator, book.totalLikes, book.totalViews)
                 sql = sql.replace("\0", "")
                 cur.execute(sql)
+
+                try:
+                    for name in book.categories.split(","):
+                        sql = "replace INTO category(bookId, category) VALUES ('{0}', '{1}'); ".format(book.id, name)
+                        sql = sql.replace("\0", "")
+                        cur.execute(sql)
+                except Exception as es:
+                    Log.Error(es)
+
             except Exception as ex:
                 Log.Error(ex)
 
@@ -246,7 +318,6 @@ class SqlServer(Singleton):
 
     def _UpdateFavorite(self, conn, addData, backId):
         cur = conn.cursor()
-        from src.user.user import User
         for bookId, sortId in addData:
             try:
                 if not bookId:
@@ -261,7 +332,6 @@ class SqlServer(Singleton):
 
     @staticmethod
     def SearchFavorite(page, sortKey=0, sortId=0):
-        from src.user.user import User
         sql = "select book.id, title, title2, author, chineseTeam, description, epsCount, pages, finished, likesCount, categories, tags," \
               "created_at, updated_at, path, fileServer, creator, totalLikes, totalViews from book, favorite  where book.id = favorite.id and favorite.user='{}' ".format(
             User().userId)
@@ -289,14 +359,18 @@ class SqlServer(Singleton):
         return sql
 
     @staticmethod
-    def Search(wordList, isTitle, isAutor, isDes, isTag, isCategory, isCreator, page, sortKey=0, sortId=0):
+    def Search(wordList, isTitle, isAutor, isDes, isTag, isCategory, isCreator, categorys, page, sortKey=0, sortId=0):
         data = ""
+        sql2Data = ""
         wordList2 = wordList.split("|")
         for words in wordList2:
             data2 = ""
             for word in words.split("&"):
                 data3 = ""
+                if not word:
+                    continue
                 if isTitle:
+                    data3 += " title like '%{}%' or ".format(Converter('zh-hans').convert(word).replace("'", "''"))
                     data3 += " title2 like '%{}%' or ".format(Converter('zh-hans').convert(word).replace("'", "''"))
                 if isAutor:
                     data3 += " author like '%{}%' or ".format(Converter('zh-hans').convert(word).replace("'", "''"))
@@ -312,14 +386,32 @@ class SqlServer(Singleton):
                 data3 = data3.strip("or ")
                 data2 += "({}) and ".format(data3)
             data2 = data2.strip("and ")
+
+            data4 = ""
+            if categorys:
+                for category in categorys:
+                    data4 += " categories like '%{}%' or ".format(Converter('zh-hans').convert(category).replace("'", "''"))
+            data4 = data4.strip("or ")
+
             if data2:
-                data += " or ({})".format(data2)
+                if data4:
+                    data += " or ({} and ({}))".format(data2, data4)
+                else:
+                    data += " or ({})".format(data2)
+                sql2Data += " or ({})".format(data2)
+
         if data:
             sql = "SELECT id, title, title2, author, chineseTeam, description, epsCount, pages, finished, likesCount, categories, tags," \
               "created_at, updated_at, path, fileServer, creator, totalLikes, totalViews FROM book WHERE 0 {}".format(data)
         else:
             sql = "SELECT id, title, title2, author, chineseTeam, description, epsCount, pages, finished, likesCount, categories, tags," \
               "created_at, updated_at, path, fileServer, creator, totalLikes, totalViews FROM book WHERE 1 "
+
+        if sql2Data:
+            sql2Data = "SELECT id FROM book WHERE 0 {}".format(sql2Data)
+        else:
+            sql2Data = "SELECT id FROM book WHERE 1 "
+
         if sortKey == 0:
             sql += "ORDER BY updated_at "
         elif sortKey == 1:
@@ -338,4 +430,148 @@ class SqlServer(Singleton):
         else:
             sql += "ASC"
         sql += "  limit {},{};".format((page-1)*20, 20)
-        return sql
+        return sql, sql2Data
+
+    @staticmethod
+    def _GetSearchWhere(word, isTitle, isAuthor, isDes, isTag, isCategory, isCreator, isLike):
+        data3 = ""
+        if isLike:
+            likeStr = "like"
+            linkStr = "or"
+        else:
+            likeStr = "not like"
+            linkStr = "and"
+
+        if isTitle:
+            data3 += " title {} '%{}%' {} ".format(likeStr, word, linkStr)
+            data3 += " title2 {} '%{}%' {} ".format(likeStr, word, linkStr)
+        if isAuthor:
+            data3 += " author {} '%{}%' {} ".format(likeStr, word, linkStr)
+            data3 += " chineseTeam {} '%{}%' {} ".format(likeStr, word, linkStr)
+        if isDes:
+            data3 += " description {} '%{}%' {} ".format(likeStr, word, linkStr)
+        if isTag:
+            data3 += " tags {} '%{}%' {} ".format(likeStr, word, linkStr)
+        if isCategory:
+            data3 += " categories {} '%{}%' {} ".format(likeStr, word, linkStr)
+        if isCreator:
+            data3 += " creator {} '%{}%' {} ".format(likeStr, word, linkStr)
+        data3 = data3.strip("{} ".format(linkStr))
+        return "({})".format(data3)
+
+    @staticmethod
+    def Search2(wordList, isTitle, isAuthor, isDes, isTag, isCategory, isCreator, categorys, page, sortKey=0, sortId=0):
+
+        wordList2 = wordList.split(" ")
+        exclude = []
+        andWords = []
+        orWords = []
+
+        for words in wordList2:
+            if len(words) <= 0:
+                continue
+            words = Converter('zh-hans').convert(words)
+            if words[0] == "+":
+                andWords.append(words[1:])
+            elif words[0] == "-":
+                exclude.append(words[1:])
+            else:
+                orWords.append(words)
+
+        data = ""
+        data2 = ""
+        for word in orWords:
+            whereSql = SqlServer._GetSearchWhere(word, isTitle, isAuthor, isDes, isTag, isCategory, isCreator, True)
+            data2 += "{} or ".format(whereSql)
+        if data2:
+            data += "({})".format(data2.strip("or "))
+
+        data2 = ""
+        for word in andWords:
+            whereSql = SqlServer._GetSearchWhere(word, isTitle, isAuthor, isDes, isTag, isCategory, isCreator, True)
+            data2 += "{} or ".format(whereSql)
+        if data2:
+            data += "and ({})".format(data2.strip("or "))
+
+        data2 = ""
+        for word in exclude:
+            whereSql = SqlServer._GetSearchWhere(word, isTitle, isAuthor, isDes, isTag, isCategory, isCreator, False)
+            data2 += "{} or ".format(whereSql)
+        if data2:
+            data += "and ({})".format(data2.strip("or "))
+
+        sql2Data = data
+
+        data2 = ""
+        if categorys:
+            for category in categorys:
+                data2 += " categories like '%{}%' or ".format(Converter('zh-hans').convert(category).replace("'", "''"))
+        if data2:
+            data += "and ({})".format(data2.strip("or "))
+
+        data = data.strip("and ").strip("or ")
+
+        selectNumSql = data
+        if data:
+            sql = "SELECT id, title, title2, author, chineseTeam, description, epsCount, pages, finished, likesCount, categories, tags," \
+              "created_at, updated_at, path, fileServer, creator, totalLikes, totalViews FROM book WHERE {}".format(data)
+        else:
+            sql = "SELECT id, title, title2, author, chineseTeam, description, epsCount, pages, finished, likesCount, categories, tags," \
+              "created_at, updated_at, path, fileServer, creator, totalLikes, totalViews FROM book WHERE 1 "
+
+        if selectNumSql:
+            selectNumSql = "SELECT count(*) FROM book WHERE {}".format(selectNumSql)
+        else:
+            selectNumSql = "SELECT count(*) FROM book WHERE 1 "
+
+        if sql2Data:
+            sql2Data = "SELECT id FROM book WHERE {}".format(sql2Data)
+        else:
+            sql2Data = "SELECT id FROM book WHERE 1 "
+
+        if sortKey == 0:
+            sql += "ORDER BY updated_at "
+        elif sortKey == 1:
+            sql += "ORDER BY created_at "
+        elif sortKey == 2:
+            sql += "ORDER BY totalLikes "
+        elif sortKey == 3:
+            sql += "ORDER BY totalViews "
+        elif sortKey == 4:
+            sql += "ORDER BY epsCount "
+        elif sortKey == 5:
+            sql += "ORDER BY pages "
+
+        if sortId == 0:
+            sql += "DESC"
+        else:
+            sql += "ASC"
+        sql += "  limit {},{};".format((page-1)*20, 20)
+        return sql, sql2Data, selectNumSql
+
+    @staticmethod
+    def SaveCacheWord():
+        path = os.path.join(Setting.GetConfigPath(), "cache_word")
+        try:
+            if not SqlServer().cacheWord:
+                return
+            f = open(path, "w+", encoding="utf-8")
+            f.write("\n".join(SqlServer().cacheWord))
+            f.close()
+        except Exception as es:
+            Log.Error(es)
+
+    @staticmethod
+    def LoadCacheWord():
+        path = os.path.join(Setting.GetConfigPath(), "cache_word")
+        try:
+            if not os.path.isfile(path):
+                return
+            f = open(path, "r", encoding="utf-8")
+            data = f.read()
+            f.close()
+            for v in data.split("\n"):
+                if v:
+                    SqlServer().cacheWord.append(v)
+        except Exception as es:
+            Log.Error(es)

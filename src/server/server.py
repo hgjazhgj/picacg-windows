@@ -6,11 +6,14 @@ import requests
 import urllib3
 from urllib3.util.ssl_ import is_ipaddress
 
-import src.server.req as req
-import src.server.res as res
-from conf import config
-from src.util import ToolUtil, Singleton, Log
-from src.util.status import Status
+import server.req as req
+import server.res as res
+from config import config
+from task.qt_task import TaskBase
+from tools.log import Log
+from tools.singleton import Singleton
+from tools.status import Status
+from tools.tool import ToolUtil
 
 urllib3.disable_warnings()
 
@@ -41,26 +44,23 @@ connection.create_connection = patched_create_connection
 
 def handler(request):
     def generator(handler):
-        Server().handler[request] = handler()
+        Server().handler[request.__name__] = handler()
         return handler
     return generator
 
 
 class Task(object):
-    def __init__(self, request, bakParam="", cacheAndLoadPath="", loadPath=""):
+    def __init__(self, request, bakParam=""):
         self.req = request
         self.res = None
         self.timeout = 5
         self.bakParam = bakParam
         self.status = Status.Ok
-        self.cacheAndLoadPath = cacheAndLoadPath
-        self.loadPath = loadPath
 
 
-class Server(Singleton, threading.Thread):
+class Server(Singleton):
     def __init__(self) -> None:
         super().__init__()
-        threading.Thread.__init__(self)
         self.handler = {}
         self.session = requests.session()
         self.address = ""
@@ -75,33 +75,41 @@ class Server(Singleton, threading.Thread):
 
         for i in range(self.threadNum):
             thread = threading.Thread(target=self.Run)
+            thread.setName("HTTP-"+str(i))
             thread.setDaemon(True)
             thread.start()
 
         for i in range(self.downloadNum):
             thread = threading.Thread(target=self.RunDownload)
+            thread.setName("Download-" + str(i))
             thread.setDaemon(True)
             thread.start()
 
     def Run(self):
         while True:
-            try:
-                task = self._inQueue.get(True)
-            except Exception as es:
-                continue
-                pass
+            task = self._inQueue.get(True)
             self._inQueue.task_done()
             try:
+                if task == "":
+                    break
                 self._Send(task)
             except Exception as es:
                 Log.Error(es)
         pass
+
+    def Stop(self):
+        for i in range(self.threadNum):
+            self._inQueue.put("")
+        for i in range(self.downloadNum):
+            self._downloadQueue.put("")
 
     def RunDownload(self):
         while True:
             task = self._downloadQueue.get(True)
             self._downloadQueue.task_done()
             try:
+                if task == "":
+                    break
                 self._Download(task)
             except Exception as es:
                 Log.Error(es)
@@ -110,7 +118,11 @@ class Server(Singleton, threading.Thread):
     def UpdateDns(self, address, imageAddress):
         self.imageServer = imageAddress
         self.address = address
-        for domain in config.ApiDomain:
+
+        AllDomain = config.ApiDomain[:]
+        AllDomain.append(config.ImageServer2)
+        AllDomain.append(config.ImageServer2Jump)
+        for domain in AllDomain:
             if is_ipaddress(address):
                 host_table[domain] = address
             elif not address and domain in host_table:
@@ -135,7 +147,7 @@ class Server(Singleton, threading.Thread):
             if not is_ipaddress(self.imageServer):
                 request.url = request.url.replace(host, self.imageServer)
 
-        if not config.IsUseHttps:
+        if not request.isUseHttps:
             request.url = request.url.replace("https://", "http://")
 
         # host = ToolUtil.GetUrlHost(request.url)
@@ -161,12 +173,12 @@ class Server(Singleton, threading.Thread):
         #
         #     request.url = request.url.replace(host, self.imageServer)
 
-    def Send(self, request, token="", backParam="", isASync=True):
-        self.__DealHeaders(request, token)
+    def Send(self, request, backParam="", isASync=True):
+        self.__DealHeaders(request, request.token)
         if isASync:
-            self._inQueue.put(Task(request, backParam))
+            return self._inQueue.put(Task(request, backParam))
         else:
-            self._Send(Task(request, backParam))
+            return self._Send(Task(request, backParam))
 
     def _Send(self, task):
         try:
@@ -185,14 +197,16 @@ class Server(Singleton, threading.Thread):
             Log.Warn(task.req.url + " " + es.__repr__())
             Log.Debug(es)
         finally:
-            Log.Info("response-> backId:{}, {}, {}".format(task.bakParam, task.req.__class__.__name__, task.res))
+            Log.Info("response-> backId:{}, {}, st:{}, {}".format(task.bakParam, task.req.__class__.__name__, task.status, task.res))
         try:
-            self.handler.get(task.req.__class__)(task)
+            self.handler.get(task.req.__class__.__name__)(task)
             if task.res.raw:
                 task.res.raw.close()
         except Exception as es:
             Log.Warn("task: {}, error".format(task.req.__class__))
             Log.Error(es)
+        finally:
+            return task.res
 
     def Post(self, task):
         request = task.req
@@ -202,6 +216,7 @@ class Server(Singleton, threading.Thread):
         if request.headers == None:
             request.headers = {}
 
+        task.res = res.BaseRes("", False)
         r = self.session.post(request.url, proxies=request.proxy, headers=request.headers, data=json.dumps(request.params), timeout=task.timeout, verify=False)
         task.res = res.BaseRes(r, request.isParseRes)
         return task
@@ -214,6 +229,7 @@ class Server(Singleton, threading.Thread):
         if request.headers == None:
             request.headers = {}
 
+        task.res = res.BaseRes("", False)
         r = self.session.put(request.url, proxies=request.proxy, headers=request.headers, data=json.dumps(request.params), timeout=60, verify=False)
         task.res = res.BaseRes(r, request.isParseRes)
         return task
@@ -231,9 +247,9 @@ class Server(Singleton, threading.Thread):
         task.res = res.BaseRes(r, request.isParseRes)
         return task
 
-    def Download(self, request, token="", bakParams="", cacheAndLoadPath="", loadPath= "", isASync=True):
+    def Download(self, request, token="", backParams="", isASync=True):
         self.__DealHeaders(request, token)
-        task = Task(request, bakParams, cacheAndLoadPath, loadPath)
+        task = Task(request, backParams)
         if isASync:
             self._downloadQueue.put(task)
         else:
@@ -241,20 +257,21 @@ class Server(Singleton, threading.Thread):
 
     def _Download(self, task):
         try:
-            if not isinstance(task.req, req.SpeedTestReq):
-                for cachePath in [task.cacheAndLoadPath, task.loadPath]:
-                    if cachePath and task.bakParam:
-                        data = ToolUtil.LoadCachePicture(cachePath)
-                        if data:
-                            from src.qt.util.qttask import QtTask
-                            QtTask().downloadBack.emit(task.bakParam, len(data), data)
-                            QtTask().downloadBack.emit(task.bakParam, 0, b"")
-                            return
+            if not task.req.isReload:
+                if not isinstance(task.req, req.SpeedTestReq) and not task.req.savePath:
+                    for cachePath in [task.req.loadPath, task.req.cachePath]:
+                        if cachePath and task.bakParam:
+                            data = ToolUtil.LoadCachePicture(cachePath)
+                            if data:
+                                TaskBase.taskObj.downloadBack.emit(task.bakParam, len(data), b"")
+                                TaskBase.taskObj.downloadBack.emit(task.bakParam, 0, data)
+                                Log.Info("request cache -> backId:{}, {}".format(task.bakParam, task.req))
+                                return
             request = task.req
-            if request.params == None:
+            if request.params is None:
                 request.params = {}
 
-            if request.headers == None:
+            if request.headers is None:
                 request.headers = {}
             Log.Info("request-> backId:{}, {}".format(task.bakParam, task.req))
             r = self.session.get(request.url, proxies=request.proxy, headers=request.headers, stream=True, timeout=task.timeout, verify=False)
@@ -264,7 +281,7 @@ class Server(Singleton, threading.Thread):
         except Exception as es:
             Log.Warn(task.req.url + " " + es.__repr__())
             task.status = Status.NetError
-        self.handler.get(task.req.__class__)(task)
+        self.handler.get(task.req.__class__.__name__)(task)
         if task.res:
             task.res.close()
 

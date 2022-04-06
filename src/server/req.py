@@ -1,35 +1,40 @@
 import base64
 from urllib.parse import quote
 
-from conf import config
-from src.util import ToolUtil
+from config import config
+from config.setting import Setting
+from tools.tool import ToolUtil
 
 
 class ServerReq(object):
     def __init__(self, url, header=None, params=None, method="POST") -> None:
         self.url = url
+        self.token = ""
         self.headers = header
         self.params = params
         self.method = method
         self.isParseRes = True
         self.useImgProxy = True
-        if config.IsHttpProxy:
-            self.proxy = {"http": config.HttpProxy, "https": config.HttpProxy}
+        self.isUseHttps = True
+        if Setting.IsHttpProxy.value == 1:
+            self.proxy = {"http": Setting.HttpProxy.value, "https": Setting.HttpProxy.value}
         else:
             self.proxy = {}
 
     def __str__(self):
-        if config.LogIndex == 0:
-            return ""
-        headers = dict()
-        headers.update(self.headers)
-        if config.LogIndex == 1 and "authorization" in headers:
-            headers["authorization"] = "**********"
+        # if Setting.LogIndex.value == 0:
+        #     return self.__class__.__name__
+        # elif Setting.LogIndex.value == 1:
+        #     return "{}, url:{}".format(self.__class__.__name__, self.url)
+        # headers = dict()
+        # headers.update(self.headers)
+        # if Setting.LogIndex.value == 1 and "authorization" in headers:
+        #     headers["authorization"] = "**********"
         params = dict()
         params.update(self.params)
-        if config.LogIndex == 1 and "password" in params:
+        if Setting.LogIndex.value == 1 and "password" in params:
             params["password"] = "******"
-        return "{}, url:{}, proxy:{}, method:{}, headers:{}, params:{}".format(self.__class__.__name__, self.url, self.proxy, self.method, headers, params)
+        return "{}, url:{}, method:{}, params:{}".format(self.__class__.__name__, self.url, self.method, params)
 
 
 # 获得分流Ip
@@ -77,6 +82,46 @@ class RegisterReq(ServerReq):
         method = "POST"
         super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method),
                                              data, method)
+
+
+# 忘记密码
+class ForgotPasswordReq(ServerReq):
+    def __init__(self, email):
+        data = {
+            "email": email
+        }
+        url = config.Url + "auth/forgot-password"
+        method = "POST"
+        super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method),
+                                             data, method)
+
+
+# 重置密码
+class ResetPasswordReq(ServerReq):
+    def __init__(self, email, questionNo, answer):
+        data = {
+            "email": email,
+            "questionNo": questionNo,
+            "answer": answer,
+        }
+        url = config.Url + "auth/reset-password"
+        method = "POST"
+        super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method),
+                                             data, method)
+
+
+# 修改密码
+class ChangePasswordReq(ServerReq):
+    def __init__(self, token, oldPassword, newPassword):
+        data = {
+            "new_password": newPassword,
+            "old_password": oldPassword
+        }
+        url = config.Url + "users/password"
+        method = "PUT"
+        hearder = ToolUtil.GetHeader(url, method)
+        super(self.__class__, self).__init__(url, hearder, data, method)
+        self.token = token
 
 
 # 获得用户信息
@@ -242,19 +287,19 @@ class GetComicsRecommendation(ServerReq):
 
 # 下载图片
 class DownloadBookReq(ServerReq):
-    def __init__(self, url, path="", isSaveCache=False):
-        if path:
-            url = url + "/static/{}".format(path)
+    def __init__(self, url, loadPath="", cachePath="", savePath="", isReload=False):
         method = "Download"
         self.url = url
-        self.path = path
-        self.isSaveCache = isSaveCache
+        self.loadPath = loadPath
+        self.cachePath = cachePath
+        self.savePath = savePath
+        self.isReload = isReload
         super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method),
                                              {}, method)
 
 
 # 获得评论
-class GetComments(ServerReq):
+class GetCommentsReq(ServerReq):
     def __init__(self, bookId="", page=1):
         url = config.Url + "comics/{}/comments?page={}".format(bookId, page)
         method = "GET"
@@ -291,8 +336,7 @@ class CheckUpdateReq(ServerReq):
 
 # 检查更新
 class CheckUpdateDatabaseReq(ServerReq):
-    def __init__(self):
-        url = config.DatabaseUpdate
+    def __init__(self, url):
         method = "GET"
         header = {
             "Pragma": "No-cache",
@@ -306,10 +350,10 @@ class CheckUpdateDatabaseReq(ServerReq):
 
 # 下载
 class DownloadDatabaseReq(ServerReq):
-    def __init__(self, tick):
+    def __init__(self, url, tick):
         import time
         day = time.strftime('%Y-%m-%d', time.localtime(tick))
-        url = config.DatabaseDownload + day + ".data"
+        url = url + day + ".data"
         method = "GET"
         header = {
             "Pragma": "No-cache",
@@ -331,7 +375,7 @@ class GetKeywords(ServerReq):
 
 
 # 发送评论
-class SendComment(ServerReq):
+class SendCommentReq(ServerReq):
     def __init__(self, bookId="", content=""):
         url = config.Url + "comics/{}/comments".format(bookId)
         method = "POST"
@@ -379,6 +423,7 @@ class SpeedTestReq(ServerReq):
         header['cache-control'] = 'no-cache'
         header['expires'] = '0'
         header['pragma'] = 'no-cache'
+        self.isReload = False
         super(self.__class__, self).__init__(url, header,
                                              {}, method)
 
@@ -498,7 +543,7 @@ class GetGameCommentsReq(ServerReq):
 # 游戏区评论爱心
 class GameCommentsLikeReq(ServerReq):
     def __init__(self, gameId):
-        url = config.Url + "games/{}/like".format(gameId)
+        url = config.Url + "comments/{}/like".format(gameId)
         method = "POST"
         super(self.__class__, self).__init__(url, ToolUtil.GetHeader(url, method),
                                              {}, method)
